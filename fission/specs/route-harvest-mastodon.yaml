@@ -1,0 +1,18 @@
+apiVersion: fission.io/v1
+kind: HTTPTrigger
+metadata:
+  creationTimestamp: null
+  name: harvest-mastodon-route
+spec:
+  createingress: true
+  functionref:
+    name: harvest-mastodon-individual
+    type: name
+  host: ""
+  ingressconfig:
+    host: '*'
+    path: /harvest-mastodon
+    tls: ""
+  methods:
+  - GET
+  relativeurl: /harvest-mastodon

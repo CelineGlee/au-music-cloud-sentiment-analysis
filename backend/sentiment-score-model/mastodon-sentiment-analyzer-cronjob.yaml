@@ -1,0 +1,64 @@
+# This CronJob is for scheduling and orchestrating the mastodon-prod-v3 index sentiment
+# analysis workload:
+#  1. Deletes any existing jobs from previous runs to avoid conflicts
+#  2. Creates 5 new parallel jobs, one for each data shard
+#
+# The CronJob uses the kubectl container to create Jobs based on the YAML templates
+# stored in the mastodon-sentiment-shards-configmap.
+#
+# Using a CronJob for orchestration provides several benefits:
+#  - Automatic scheduling of batch processing at regular intervals
+#  - Built-in history tracking of previous runs
+#  - Clean restart mechanism for the sharded analysis system
+#  - Separation of orchestration logic from analysis code
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mastodon-sentiment-analyzer-script
+  namespace: elastic
+spec:
+  schedule: "0 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  startingDeadlineSeconds: 800
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: kubectl
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              for i in 0 1 2 3 4; do
+                kubectl delete jobs mastodon-sentiment-shard$i-job -n elastic --ignore-not-found=true
+              done
+              
+              sleep 10
+              
+              # Create a job for each shard
+              echo "Starting shard 0..."
+              kubectl create -f /yamls/shard0.yaml
+              echo "Starting shard 1..."
+              kubectl create -f /yamls/shard1.yaml
+              echo "Starting shard 2..."
+              kubectl create -f /yamls/shard2.yaml
+              echo "Starting shard 3..."
+              kubectl create -f /yamls/shard3.yaml
+              echo "Starting shard 4..."
+              kubectl create -f /yamls/shard4.yaml
+              
+              echo "All sentiment analysis jobs have been started successfully"
+            volumeMounts:
+            - name: job-yamls
+              mountPath: /yamls
+          volumes:
+          - name: job-yamls
+            configMap:
+              name: mastodon-sentiment-shards-configmap
+          restartPolicy: OnFailure
+
+

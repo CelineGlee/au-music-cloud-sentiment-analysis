@@ -1,0 +1,34 @@
+# This manifest defines the Role-Based Access Control (RBAC) resources needed
+# for the sentiment analysis CronJob to manage Kubernetes Jobs in the elastic namespace.
+#
+# It contains two Kubernetes resources:
+# 1. A Role that defines the permissions needed to manage Jobs
+# 2. A RoleBinding that assigns these permissions to the default ServiceAccount
+#
+# These RBAC resources are necessary because some sentiment analyzer CronJob , like Reddit Comments one
+# needs permissions to create and manage Jobs for each shard of the processing.
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sentiment-job-creator
+  namespace: elastic
+rules:
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sentiment-job-creator-binding
+  namespace: elastic
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: elastic
+roleRef:
+  kind: Role
+  name: sentiment-job-creator
+  apiGroup: rbac.authorization.k8s.io

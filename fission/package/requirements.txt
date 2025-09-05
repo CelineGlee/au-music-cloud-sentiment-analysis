@@ -1,0 +1,16 @@
+beautifulsoup4==4.12.3
+Mastodon.py==2.0.1
+elasticsearch==8.14.0
+redis==5.0.8
+bs4
+flask
+textblob
+praw
+python-dotenv
+# transformers==4.28.0
+# torch==2.3.1
+# numpy==1.26.4
+# pandas>=1.5.0
+# requests>=2.28.0
+# transformers (requires Rust, not in fission/python env :( )
+# torch ( also not supported in the fission/python env :( )

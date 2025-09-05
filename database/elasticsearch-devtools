@@ -1,0 +1,1684 @@
+GET katy-perry-index/_search
+{
+  "size": 0,
+  "query": {
+    "match_phrase": {
+      "content": "Katy Perry"
+    }
+  },
+  "aggs": {
+    "sentiment_counts": {
+      "terms": {
+        "field": "sentiment.keyword"
+      }
+    }
+  }
+}
+
+GET katy-perry-index/_search
+{
+  "size": 0,
+  "aggs": {
+    "unique_topics": {
+      "cardinality": {
+          "field": "topic.keyword"
+      }
+    },
+    "latest_post": {
+      "max": {
+        "field": "created_at"
+      }
+    }
+  }
+}
+
+
+GET katy-perry-index/_search
+{
+  "size": 0,
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match_phrase": {
+            "content": "Katy Perry"
+          }
+        },
+        {
+          "term": {
+            "tags.keyword": "katyperry"
+          }
+        }
+      ],
+      "minimum_should_match": 1
+    }
+  },
+  "aggs": {
+    "monthly": {
+      "date_histogram": {
+        "field": "created_at",
+        "calendar_interval": "month",
+        "format": "yyyy/MM"
+      },
+      "aggs": {
+        "positive": {
+          "filter": {
+            "term": {
+              "sentiment": "positive"
+            }
+          }
+        },
+        "negative": {
+          "filter": {
+            "term": {
+              "sentiment": "negative"
+            }
+          }
+        },
+        "neutral": {
+          "filter": {
+            "term": {
+              "sentiment": "neutral"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+DELETE all-singers
+
+PUT reddit-prod
+{
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "original_id": {
+        "type": "keyword"
+      },
+      "created_utc": {
+        "type": "date",
+        "format": "strict_date_time"  // ISO 8601 format like "2025-05-03T18:16:21+00:00"
+      },
+      "title": {
+        "type": "text"
+      },
+      "author": {
+        "type": "keyword"
+      },
+      "score": {
+        "type": "integer"
+      },
+      "url": {
+        "type": "keyword"
+      },
+      "content": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+
+GET mastodon-all-index/_mapping
+
+GET /_mapping
+
+GET mastodon-prod-v3/_mapping
+
+GET reddit-prod-v1/_mapping
+
+GET reddit-prod-v2/_mapping
+
+GET reddit-prod-v3/_mapping
+
+PUT /mastodon-all-index/_mapping
+{
+  "properties": {
+    "account": {
+      "type": "object", 
+      "properties": {
+        "id": {"type": "keyword"},
+        "username": {"type": "keyword"},
+        "acct": {"type": "keyword"},
+        "display_name": {"type": "text"},
+        "created_at": {"type": "date"},
+        "following_count": {"type": "integer"},
+        "followers_count": {"type": "integer"},
+        "statuses_count": {"type": "integer"},
+        "avatar": {"type": "keyword"},
+        "bio": {"type": "text"},
+        "bot": {"type": "boolean"}
+      }
+    },
+    "mentions": {
+      "type": "nested", 
+      "properties": {
+        "id": {"type": "keyword"},
+        "username": {"type": "keyword"},
+        "url": {"type": "keyword"}
+      }
+    },
+    "media_attachments": {
+      "type": "nested",
+      "properties": {
+        "id": {"type": "keyword"},
+        "type": {"type": "keyword"},
+        "url": {"type": "keyword"},
+        "preview_url": {"type": "keyword"}
+      }
+    }
+  }
+}
+
+
+PUT /reddit-prod/_mapping
+{
+  "properties": {
+    "subreddit_id": {
+      "type": "keyword"
+    },
+    "approved_at_utc": {
+      "type": "date",
+      "format": "strict_date_time"
+    },
+    "author_is_blocked": {
+      "type": "boolean"
+    },
+    "comment_type": {
+      "type": "keyword"
+    },
+    "awarders": {
+      "type": "keyword"
+    },
+    "mod_reason_by": {
+      "type": "keyword"
+    },
+    "banned_by": {
+      "type": "keyword"
+    },
+    "author_flair_type": {
+      "type": "keyword"
+    },
+    "total_awards_received": {
+      "type": "integer"
+    },
+    "subreddit": {
+      "properties": {
+        "display_name": {
+          "type": "keyword"
+        }
+      }
+    },
+    "author_flair_template_id": {
+      "type": "keyword"
+    },
+    "likes": {
+      "type": "integer"
+    },
+    "user_reports": {
+      "type": "keyword"
+    },
+    "saved": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "keyword"
+    },
+    "banned_at_utc": {
+      "type": "date",
+      "format": "strict_date_time"
+    },
+    "mod_reason_title": {
+      "type": "keyword"
+    },
+    "gilded": {
+      "type": "integer"
+    },
+    "archived": {
+      "type": "boolean"
+    },
+    "collapsed_reason_code": {
+      "type": "keyword"
+    },
+    "no_follow": {
+      "type": "boolean"
+    },
+    "author": {
+      "type": "keyword"
+    },
+    "can_mod_post": {
+      "type": "boolean"
+    },
+    "created_utc": {
+      "type": "date",
+      "format": "strict_date_time"
+    },
+    "send_replies": {
+      "type": "boolean"
+    },
+    "parent_id": {
+      "type": "keyword"
+    },
+    "score": {
+      "type": "integer"
+    },
+    "approved_by": {
+      "type": "keyword"
+    },
+    "mod_note": {
+      "type": "keyword"
+    },
+    "all_awardings": {
+      "type": "keyword"
+    },
+    "collapsed": {
+      "type": "boolean"
+    },
+    "body": {
+      "type": "text"
+    },
+    "edited": {
+      "type": "boolean"
+    },
+    "top_awarded_type": {
+      "type": "keyword"
+    },
+    "author_flair_css_class": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "keyword"
+    },
+    "is_submitter": {
+      "type": "boolean"
+    },
+    "downs": {
+      "type": "integer"
+    },
+    "author_flair_richtext": {
+      "type": "keyword"
+    },
+    "author_patreon_flair": {
+      "type": "boolean"
+    },
+    "body_html": {
+      "type": "text"
+    },
+    "removal_reason": {
+      "type": "keyword"
+    },
+    "collapsed_reason": {
+      "type": "keyword"
+    },
+    "distinguished": {
+      "type": "keyword"
+    },
+    "associated_award": {
+      "type": "keyword"
+    },
+    "stickied": {
+      "type": "boolean"
+    },
+    "author_premium": {
+      "type": "boolean"
+    },
+    "can_gild": {
+      "type": "boolean"
+    },
+    "gildings": {
+      "type": "object"
+    },
+    "unrepliable_reason": {
+      "type": "keyword"
+    },
+    "author_flair_text_color": {
+      "type": "keyword"
+    },
+    "score_hidden": {
+      "type": "boolean"
+    },
+    "permalink": {
+      "type": "keyword"
+    },
+    "subreddit_type": {
+      "type": "keyword"
+    },
+    "locked": {
+      "type": "boolean"
+    },
+    "report_reasons": {
+      "type": "keyword"
+    },
+    "created": {
+      "type": "date",
+      "format": "strict_date_time"
+    },
+    "author_flair_text": {
+      "type": "keyword"
+    },
+    "treatment_tags": {
+      "type": "keyword"
+    },
+    "link_id": {
+      "type": "keyword"
+    },
+    "subreddit_name_prefixed": {
+      "type": "keyword"
+    },
+    "controversiality": {
+      "type": "integer"
+    },
+    "depth": {
+      "type": "integer"
+    },
+    "author_flair_background_color": {
+      "type": "keyword"
+    },
+    "collapsed_because_crowd_control": {
+      "type": "keyword"
+    },
+    "mod_reports": {
+      "type": "keyword"
+    },
+    "num_reports": {
+      "type": "integer"
+    },
+    "ups": {
+      "type": "integer"
+    }
+  }
+}
+
+POST _reindex
+{
+  "source": {
+    "index": "reddit-prod"
+  },
+  "dest": {
+    "index": "reddit-prod-v1"
+  }
+}
+
+
+GET /_cluster/health
+
+
+POST _reindex?timeout=30m
+{
+  "source": {
+    "index": "mastodon-all-index"
+  },
+  "dest": {
+    "index": "mastodon-prod-v2"
+  }
+}
+
+PUT mastodon-prod-v2
+{
+    "mappings": {
+      "properties": {
+        "account": {
+          "properties": {
+            "acct": {
+              "type": "keyword"
+            },
+            "avatar": {
+              "type": "keyword"
+            },
+            "bio": {
+              "type": "text"
+            },
+            "bot": {
+              "type": "boolean"
+            },
+            "created_at": {
+              "type": "date"
+            },
+            "display_name": {
+              "type": "text"
+            },
+            "followers_count": {
+              "type": "integer"
+            },
+            "following_count": {
+              "type": "integer"
+            },
+            "id": {
+              "type": "keyword"
+            },
+            "statuses_count": {
+              "type": "integer"
+            },
+            "username": {
+              "type": "keyword"
+            }
+          }
+        },
+        "checked_cat-index": {
+          "type": "boolean"
+        },
+        "checked_dog-index": {
+          "type": "boolean"
+        },
+        "checked_katy-perry-index": {
+          "type": "boolean"
+        },
+        "content": {
+          "type": "text"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "language": {
+          "type": "keyword"
+        },
+        "media_attachments": {
+          "type": "nested",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "preview_url": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "url": {
+              "type": "keyword"
+            }
+          }
+        },
+        "mentions": {
+          "type": "nested",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "url": {
+              "type": "keyword"
+            },
+            "username": {
+              "type": "keyword"
+            }
+          }
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "url": {
+          "type": "keyword"
+        }
+      }
+    }
+}
+
+PUT reddit-prod-v2
+{
+    "mappings": {
+      "properties": {
+        "all_awardings": {
+          "type": "keyword"
+        },
+        "approved_at_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "approved_by": {
+          "type": "keyword"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "associated_award": {
+          "type": "keyword"
+        },
+        "author": {
+          "type": "keyword"
+        },
+        "author_flair_background_color": {
+          "type": "keyword"
+        },
+        "author_flair_css_class": {
+          "type": "keyword"
+        },
+        "author_flair_richtext": {
+          "type": "keyword"
+        },
+        "author_flair_template_id": {
+          "type": "keyword"
+        },
+        "author_flair_text": {
+          "type": "keyword"
+        },
+        "author_flair_text_color": {
+          "type": "keyword"
+        },
+        "author_flair_type": {
+          "type": "keyword"
+        },
+        "author_is_blocked": {
+          "type": "boolean"
+        },
+        "author_patreon_flair": {
+          "type": "boolean"
+        },
+        "author_premium": {
+          "type": "boolean"
+        },
+        "awarders": {
+          "type": "keyword"
+        },
+        "banned_at_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "banned_by": {
+          "type": "keyword"
+        },
+        "body": {
+          "type": "text"
+        },
+        "body_html": {
+          "type": "text"
+        },
+        "can_gild": {
+          "type": "boolean"
+        },
+        "can_mod_post": {
+          "type": "boolean"
+        },
+        "collapsed": {
+          "type": "boolean"
+        },
+        "collapsed_because_crowd_control": {
+          "type": "keyword"
+        },
+        "collapsed_reason": {
+          "type": "keyword"
+        },
+        "collapsed_reason_code": {
+          "type": "keyword"
+        },
+        "comment_type": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text"
+        },
+        "controversiality": {
+          "type": "integer"
+        },
+        "created": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "created_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "distinguished": {
+          "type": "keyword"
+        },
+        "downs": {
+          "type": "integer"
+        },
+        "edited": {
+          "type": "boolean"
+        },
+        "gilded": {
+          "type": "integer"
+        },
+        "gildings": {
+          "type": "object"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "is_submitter": {
+          "type": "boolean"
+        },
+        "likes": {
+          "type": "integer"
+        },
+        "link_id": {
+          "type": "keyword"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "mod_note": {
+          "type": "keyword"
+        },
+        "mod_reason_by": {
+          "type": "keyword"
+        },
+        "mod_reason_title": {
+          "type": "keyword"
+        },
+        "mod_reports": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "no_follow": {
+          "type": "boolean"
+        },
+        "num_reports": {
+          "type": "integer"
+        },
+        "original_id": {
+          "type": "keyword"
+        },
+        "parent_id": {
+          "type": "keyword"
+        },
+        "permalink": {
+          "type": "keyword"
+        },
+        "removal_reason": {
+          "type": "keyword"
+        },
+        "report_reasons": {
+          "type": "keyword"
+        },
+        "saved": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "score_hidden": {
+          "type": "boolean"
+        },
+        "send_replies": {
+          "type": "boolean"
+        },
+        "stickied": {
+          "type": "boolean"
+        },
+        "subreddit": {
+          "properties": {
+            "display_name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "subreddit_id": {
+          "type": "keyword"
+        },
+        "subreddit_name_prefixed": {
+          "type": "keyword"
+        },
+        "subreddit_type": {
+          "type": "keyword"
+        },
+        "title": {
+          "type": "text"
+        },
+        "top_awarded_type": {
+          "type": "keyword"
+        },
+        "total_awards_received": {
+          "type": "integer"
+        },
+        "treatment_tags": {
+          "type": "keyword"
+        },
+        "unrepliable_reason": {
+          "type": "keyword"
+        },
+        "ups": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "keyword"
+        },
+        "user_reports": {
+          "type": "keyword"
+        }
+      }
+    }
+  
+}
+
+POST _reindex?timeout=30m
+{
+  "source": {
+    "index": "reddit-prod"
+  },
+  "dest": {
+    "index": "reddit-prod-v2"
+  }
+}
+
+GET _tasks?detailed=true&actions=*reindex
+
+
+PUT mastodon-prod-v3
+{
+  "mappings": {
+    "properties": {
+      "account": {
+        "properties": {
+          "acct": {
+            "type": "keyword"
+          },
+          "avatar": {
+            "type": "keyword"
+          },
+          "bio": {
+            "type": "text"
+          },
+          "bot": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "date"
+          },
+          "display_name": {
+            "type": "text"
+          },
+          "followers_count": {
+            "type": "integer"
+          },
+          "following_count": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "keyword"
+          },
+          "statuses_count": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "keyword"
+          }
+        }
+      },
+      "checked_cat-index": {
+        "type": "boolean"
+      },
+      "checked_dog-index": {
+        "type": "boolean"
+      },
+      "checked_katy-perry-index": {
+        "type": "boolean"
+      },
+      "content": {
+        "type": "text"
+      },
+      "created_at": {
+        "type": "date"
+      },
+      "id": {
+        "type": "keyword"
+      },
+      "language": {
+        "type": "keyword"
+      },
+      "media_attachments": {
+        "type": "nested",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "preview_url": {
+            "type": "keyword"
+          },
+          "type": {
+            "type": "keyword"
+          },
+          "url": {
+            "type": "keyword"
+          }
+        }
+      },
+      "mentions": {
+        "type": "nested",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "url": {
+            "type": "keyword"
+          },
+          "username": {
+            "type": "keyword"
+          }
+        }
+      },
+      "tags": {
+        "type": "nested",
+        "properties": {
+          "name": {
+            "type": "keyword"
+          },
+          "url": {
+            "type": "keyword"
+          }
+        }
+      },
+      "url": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+
+POST _reindex?timeout=30m
+{
+  "source": { "index": "mastodon-prod-v2" },
+  "dest": { "index": "mastodon-prod-v3" },
+  "script": {
+    "lang": "painless",
+    "source": """
+      if (ctx._source.tags != null && ctx._source.tags instanceof List) {
+        List newTags = new ArrayList();
+        for (tag in ctx._source.tags) {
+          newTags.add(['name': tag]);  
+        }
+        ctx._source.tags = newTags;
+      }
+    """
+  }
+}
+
+
+GET _tasks?detailed=true&actions=*reindex
+
+GET /mastodon-prod-v3/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "_source": ["tags"]
+}
+
+PUT reddit-prod-v5
+{
+  "mappings": {
+      "properties": {
+        "all_awardings": {
+          "type": "keyword"
+        },
+        "approved_at_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "approved_by": {
+          "type": "keyword"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "associated_award": {
+          "type": "keyword"
+        },
+        "author": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "keyword" }
+          }
+        },
+        "author_flair_background_color": {
+          "type": "keyword"
+        },
+        "author_flair_css_class": {
+          "type": "keyword"
+        },
+        "author_flair_richtext": {
+          "type": "nested", 
+            "properties": {
+              "e": { "type": "keyword" },
+              "t": { "type": "keyword" }
+          }
+        },
+        "author_flair_template_id": {
+          "type": "keyword"
+        },
+        "author_flair_text": {
+          "type": "keyword"
+        },
+        "author_flair_text_color": {
+          "type": "keyword"
+        },
+        "author_flair_type": {
+          "type": "keyword"
+        },
+        "author_is_blocked": {
+          "type": "boolean"
+        },
+        "author_patreon_flair": {
+          "type": "boolean"
+        },
+        "author_premium": {
+          "type": "boolean"
+        },
+        "awarders": {
+          "type": "keyword"
+        },
+        "banned_at_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "banned_by": {
+          "type": "keyword"
+        },
+        "body": {
+          "type": "text"
+        },
+        "body_html": {
+          "type": "text"
+        },
+        "can_gild": {
+          "type": "boolean"
+        },
+        "can_mod_post": {
+          "type": "boolean"
+        },
+        "collapsed": {
+          "type": "boolean"
+        },
+        "collapsed_because_crowd_control": {
+          "type": "keyword"
+        },
+        "collapsed_reason": {
+          "type": "keyword"
+        },
+        "collapsed_reason_code": {
+          "type": "keyword"
+        },
+        "comment_type": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text"
+        },
+        "controversiality": {
+          "type": "integer"
+        },
+        "created": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "created_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "distinguished": {
+          "type": "keyword"
+        },
+        "downs": {
+          "type": "integer"
+        },
+        "edited": {
+          "type": "date"
+        },
+        "gilded": {
+          "type": "integer"
+        },
+        "gildings": {
+          "type": "object"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "is_submitter": {
+          "type": "boolean"
+        },
+        "likes": {
+          "type": "integer"
+        },
+        "link_id": {
+          "type": "keyword"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "mod_note": {
+          "type": "keyword"
+        },
+        "mod_reason_by": {
+          "type": "keyword"
+        },
+        "mod_reason_title": {
+          "type": "keyword"
+        },
+        "mod_reports": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "no_follow": {
+          "type": "boolean"
+        },
+        "num_reports": {
+          "type": "integer"
+        },
+        "original_id": {
+          "type": "keyword"
+        },
+        "parent_id": {
+          "type": "keyword"
+        },
+        "permalink": {
+          "type": "keyword"
+        },
+        "removal_reason": {
+          "type": "keyword"
+        },
+        "report_reasons": {
+          "type": "keyword"
+        },
+        "saved": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "score_hidden": {
+          "type": "boolean"
+        },
+        "send_replies": {
+          "type": "boolean"
+        },
+        "stickied": {
+          "type": "boolean"
+        },
+        "subreddit": {
+          "properties": {
+            "display_name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "subreddit_id": {
+          "type": "keyword"
+        },
+        "subreddit_name_prefixed": {
+          "type": "keyword"
+        },
+        "subreddit_type": {
+          "type": "keyword"
+        },
+        "title": {
+          "type": "text"
+        },
+        "top_awarded_type": {
+          "type": "keyword"
+        },
+        "total_awards_received": {
+          "type": "integer"
+        },
+        "treatment_tags": {
+          "type": "keyword"
+        },
+        "unrepliable_reason": {
+          "type": "keyword"
+        },
+        "ups": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "keyword"
+        },
+        "user_reports": {
+          "type": "keyword"
+        }
+      }
+    }
+}
+
+POST _reindex?timeout=30m
+{
+  "source": {
+    "index": "reddit-prod-v3"
+  },
+  "dest": {
+    "index": "reddit-prod-v4"
+  }
+}
+
+
+POST reddit-prod-v4/_doc
+{
+  "comment_limit": 2048,
+  "comment_sort": "confidence",
+  "approved_at_utc": null,
+  "subreddit": {
+    "display_name": "AusFinance"
+  },
+  "selftext": "I’ll be purchasing a home in the next few months...",
+  "author_fullname": "t2_5r1s7h2k",
+  "saved": false,
+  "title": "FHSS in current market",
+  "name": "t3_1k09k0d",
+  "created": "2025-04-16T02:15:39+00:00",
+  "edited": "2025-04-16T02:53:05+00:00",
+  "score": 10,
+  "ups": 10,
+  "downs": 0,
+  "upvote_ratio": 1.0,
+  "url": "https://www.reddit.com/r/AusFinance/comments/1k09k0d/fhss_in_current_market/",
+  "permalink": "/r/AusFinance/comments/1k09k0d/fhss_in_current_market/",
+  "subreddit_subscribers": 725151,
+  "num_comments": 21,
+  "author": {
+    "name": "Agreeable_Pattern909"
+  }
+}
+
+PUT reddit-prod-v4
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "nested_objects_as_keyword": {
+          "match_mapping_type": "object",
+          "match": "*_richtext",
+          "mapping": {
+            "type": "nested",
+            "properties": {
+              "e": { "type": "keyword" },
+              "t": { "type": "keyword" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+
+PUT reddit-prod-v4/_settings
+{
+  "index.mapping.total_fields.limit": 2000
+}
+
+
+PUT reddit-prod-v5/_settings
+{
+  "index.mapping.total_fields.limit": 3000
+}
+
+
+PUT reddit-prod-v6
+{
+  "mappings": {
+      "properties": {
+        "all_awardings": {
+          "type": "keyword"
+        },
+        "approved_at_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "approved_by": {
+          "type": "keyword"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "associated_award": {
+          "type": "keyword"
+        },
+        "author": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "keyword" }
+          }
+        },
+        "author_flair_background_color": {
+          "type": "keyword"
+        },
+        "author_flair_css_class": {
+          "type": "keyword"
+        },
+        "author_flair_richtext": {
+          "type": "keyword"
+        },
+        "author_flair_template_id": {
+          "type": "keyword"
+        },
+        "author_flair_text": {
+          "type": "keyword"
+        },
+        "author_flair_text_color": {
+          "type": "keyword"
+        },
+        "author_flair_type": {
+          "type": "keyword"
+        },
+        "author_is_blocked": {
+          "type": "boolean"
+        },
+        "author_patreon_flair": {
+          "type": "boolean"
+        },
+        "author_premium": {
+          "type": "boolean"
+        },
+        "awarders": {
+          "type": "keyword"
+        },
+        "banned_at_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "banned_by": {
+          "type": "keyword"
+        },
+        "body": {
+          "type": "text"
+        },
+        "body_html": {
+          "type": "text"
+        },
+        "can_gild": {
+          "type": "boolean"
+        },
+        "can_mod_post": {
+          "type": "boolean"
+        },
+        "collapsed": {
+          "type": "boolean"
+        },
+        "collapsed_because_crowd_control": {
+          "type": "keyword"
+        },
+        "collapsed_reason": {
+          "type": "keyword"
+        },
+        "collapsed_reason_code": {
+          "type": "keyword"
+        },
+        "comment_type": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text"
+        },
+        "controversiality": {
+          "type": "integer"
+        },
+        "created": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "created_utc": {
+          "type": "date",
+          "format": "strict_date_time"
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "distinguished": {
+          "type": "keyword"
+        },
+        "downs": {
+          "type": "integer"
+        },
+        "edited": {
+          "type": "date"
+        },
+        "gilded": {
+          "type": "integer"
+        },
+        "gildings": {
+          "type": "object"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "is_submitter": {
+          "type": "boolean"
+        },
+        "likes": {
+          "type": "integer"
+        },
+        "link_flair_richtext": {
+          "type": "keyword"
+        },
+        "link_id": {
+          "type": "keyword"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "media_metadata": {
+          "type": "keyword"
+        },
+        "mod_note": {
+          "type": "keyword"
+        },
+        "mod_reason_by": {
+          "type": "keyword"
+        },
+        "mod_reason_title": {
+          "type": "keyword"
+        },
+        "mod_reports": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "keyword"
+        },
+        "no_follow": {
+          "type": "boolean"
+        },
+        "num_reports": {
+          "type": "integer"
+        },
+        "original_id": {
+          "type": "keyword"
+        },
+        "parent_id": {
+          "type": "keyword"
+        },
+        "permalink": {
+          "type": "keyword"
+        },
+        "removal_reason": {
+          "type": "keyword"
+        },
+        "report_reasons": {
+          "type": "keyword"
+        },
+        "saved": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "score_hidden": {
+          "type": "boolean"
+        },
+        "send_replies": {
+          "type": "boolean"
+        },
+        "stickied": {
+          "type": "boolean"
+        },
+        "subreddit": {
+          "properties": {
+            "display_name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "subreddit_id": {
+          "type": "keyword"
+        },
+        "subreddit_name_prefixed": {
+          "type": "keyword"
+        },
+        "subreddit_type": {
+          "type": "keyword"
+        },
+        "title": {
+          "type": "text"
+        },
+        "top_awarded_type": {
+          "type": "keyword"
+        },
+        "total_awards_received": {
+          "type": "integer"
+        },
+        "treatment_tags": {
+          "type": "keyword"
+        },
+        "unrepliable_reason": {
+          "type": "keyword"
+        },
+        "ups": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "keyword"
+        },
+        "user_reports": {
+          "type": "keyword"
+        }
+      }
+    }
+}
+
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._name": "elasticsearch-master-2"
+  }
+}
+
+GET /_cat/shards?v=true&h=index,shard,prirep,state,unassigned.reason,node
+
+
+
+
+
+
+
+
+
+GET all-singers/_search
+{
+  "size": 0,
+  "aggs": {
+    "artist_mentions": {
+      "filters": {
+        "filters": {
+          "Taylor Swift": {
+            "regexp": {
+              "content.keyword": {
+                "value": ".*taylor\\s*swift.*",
+                "flags": "ALL",
+                "case_insensitive": true
+              }
+            }
+          },
+          "Beyoncé": {
+            "regexp": {
+              "content.keyword": {
+                "value": ".*beyonce.*",
+                "flags": "ALL",
+                "case_insensitive": true
+              }
+            }
+          },
+          "Adele": {
+            "regexp": {
+              "content.keyword": {
+                "value": ".*adele.*",
+                "flags": "ALL",
+                "case_insensitive": true
+              }
+            }
+          }
+          // Add more artists as needed
+        }
+      }
+    }
+  }
+}
+
+GET artists/_search
+{
+  "size": 0,
+  "aggs": {
+    "artist_filters": {
+      "filters": {
+        "filters": {
+          "CYRIL": {
+            "regexp": {
+              "content.keyword": {
+                "value": ".*taylor.*swift.*",
+                "flags": "ALL",
+                "case_insensitive": true
+              }
+            }
+          }
+        }
+      },
+      "aggs": {
+        "monthly_trend": {
+          "date_histogram": {
+            "field": "created_at",
+            "calendar_interval": "month",
+            "format": "yyyyMM"
+          }
+        }
+      }
+    }
+  }
+}
+
+GET all-singers/_search
+{
+  "size": 5,
+  "_source": ["content", "timestamp"]
+}
+
+
+GET all-singers/_mapping
+
+GET artists/_search
+{
+  "aggs": {
+    "latest_post": {
+              "max": {
+                  "field": "created_at"
+              }
+    }
+  }
+}
+
+GET artists/_search
+{
+  "query": {
+                "match_phrase": {
+                    "content.keyword": {
+                      "value": ".*taylor.*swift.*",
+                      "flags": "ALL",
+                      "case_insensitive": true
+                    }
+                    
+                }
+            },
+            "aggs": {
+                "sentiment_counts": {
+                    "terms": {
+                        "field": "roberta_sentiment_label.keyword"
+                    }
+                }
+            }
+}
+
+
+GET artists/_search
+{
+  "size": 0,
+  "aggs": {
+    "artist_filters": {
+      "filters": {
+        "filters": {
+          "Taylor Swift": {
+            "regexp": {
+              "content.keyword": {
+                "value": ".*taylor.*swift.*",
+                "flags": "ALL",
+                "case_insensitive": true
+              }
+            }
+          }
+        }
+      },
+      "aggs": {
+                "sentiment_counts": {
+                    "terms": {
+                        "field": "roberta_sentiment_label.keyword"
+                    }
+                }
+      }
+    }
+  }
+}
+
+GET artists/_mapping
+
+GET artists/_mapping/field/content
+
+
+GET artists/_search
+{
+  "query": {
+    "wildcard": {
+      "content": {
+        "value": "*Bruno*Mars*",
+        "case_insensitive": true
+      }
+    }
+  }
+}
+
+GET artists/_search
+{
+  "size": 0,
+            "aggs": {
+                "artist_mentions": {
+                    "filters": {
+                        "filters": {
+                          "Bruno Mars": {
+                            "match_phrase": {
+                              "content": "Bruno Mars"
+                            }
+                          },
+                          "brunomars": {
+                            "match_phrase": {
+                            "content": "brunomars"
+                            }
+                          }
+                        }
+                    }
+                }
+            }
+}
+
+
+GET artists/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match_phrase": { "content": "Drake" }},
+        { "match_phrase": { "content": "Bruno Mars" }}
+        
+      ],
+      "minimum_should_match": 1
+    }
+  },
+  "size": 0
+}
+
+
+GET artists/_search
+{
+  query: {
+    'bool': {'should': [{'match_phrase': {'content': 'Bruno Mars'}}, {'match_phrase': {'content': 'brunomars'}}], 'minimum_should_match': 1}}, 'track_total_hits': True, 'size': 0}
+
+}

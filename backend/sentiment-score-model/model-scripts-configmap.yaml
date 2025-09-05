@@ -1,0 +1,47 @@
+# This Kubernetes ConfigMap stores the Python script needed to download the RoBERTa
+# sentiment analysis model.
+
+# Using a ConfigMap allows the script to be:
+# Mounted into pods without needing to rebuild container images
+# Updated independently from the container image
+
+# The script downloads both the model and tokenizer components from Hugging Face's
+# model repository and stores them in the mounted persistent volume.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: model-scripts
+  namespace: elastic
+data:
+  download_model.py: |
+    #!/usr/bin/env python3
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    import os
+    import sys
+    
+    def download_model():
+        try:
+            os.makedirs("/models/roberta-sentiment/tokenizer", exist_ok=True)
+            os.makedirs("/models/roberta-sentiment/model", exist_ok=True)
+            
+            MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+            print(f"Downloading model {MODEL_NAME}...")
+            
+            tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+            tokenizer.save_pretrained("/models/roberta-sentiment/tokenizer")
+            print("Tokenizer saved successfully")
+            
+            model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+            model.save_pretrained("/models/roberta-sentiment/model")
+            print("Model saved successfully")
+            
+            print("Model download and preparation complete!")
+            return True
+        except Exception as e:
+            print(f"Error downloading model: {e}")
+            return False
+
+    if __name__ == "__main__":
+        success = download_model()
+        sys.exit(0 if success else 1)

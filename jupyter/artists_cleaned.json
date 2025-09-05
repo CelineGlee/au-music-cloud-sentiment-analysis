@@ -1,0 +1,28 @@
+{
+    "artists": {
+      "Lady Gaga" : ["Lady Gaga", "ladygaga", "gaga"],
+      "Billie Eilish" : ["Billie Eilish", "billieeilish", "billie"],
+      "Coldplay" : ["Coldplay"],
+      "Rihanna" : ["Rihanna", "riri"],
+      "Kendrick Lamar" : ["Kendrick Lamar", "kendrick", "kendricklamar"],
+      "Ed Sheeran" : ["Ed Sheeran", "edsheeran"],
+      "Taylor Swift" : ["Taylor Swift", "taylorswift"],
+      "Drake" : ["Drake"],
+      "Justin Bieber" : ["Justin Bieber", "justinbieber", "bieber"],
+      "SZA" : ["SZA"],
+      "Dua Lipa" : ["Dua Lipa", "dualipa"],
+      "Eminem" : ["Eminem"],
+      "Sia" : ["Sia"],
+      "Sabrina Carpenter" : ["Sabrina Carpenter", "sabrinacarpenter", "Sabrina"],
+      "Katy Perry" : ["Katy Perry", "katyperry"]
+    },
+    "artists_au": {
+      "Sia" : ["Sia"],
+      "AC/DC" : ["AC/DC", "acdc", "ac-dc"],
+      "Tame Impala" : ["Tame Impala", "tameimpala"],
+      "Troye Sivan" : ["Troye Sivan", "troyesivan"],
+      "CYRIL" : ["CYRIL"],
+      "Gotye" : ["Gotye"],
+      "Kylie Minogue" : ["Kylie Minogue", "kylieminogue"]
+    }
+  }

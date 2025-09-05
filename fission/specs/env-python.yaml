@@ -1,0 +1,62 @@
+apiVersion: fission.io/v1
+kind: Environment
+metadata:
+  name: python
+  namespace: default
+spec:
+  builder:
+    command: build
+    container:
+      name: builder
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "128Mi" 
+        requests:
+          cpu: "100m"
+          memory: "64Mi"
+    image: fission/python-builder
+    podspec:
+      containers:
+      - name: builder
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "128Mi" 
+          requests:
+            cpu: "100m"
+            memory: "64Mi"
+  imagepullsecret: ""
+  keeparchive: false
+  poolsize: 5
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "128Mi" 
+      ephemeral-storage: "2Gi"
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+      ephemeral-storage: "1Gi"
+  runtime:
+    container:
+      name: python
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "128Mi" 
+        requests:
+          cpu: "100m"
+          memory: "64Mi"
+    image: fission/python-env
+    podspec:
+      containers:
+      - name: python
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "128Mi" 
+          requests:
+            cpu: "100m"
+            memory: "64Mi"
+  version: 3

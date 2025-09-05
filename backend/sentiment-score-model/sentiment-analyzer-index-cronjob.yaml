@@ -1,0 +1,82 @@
+# This CronJob schedules sentiment analysis for multiple Elasticsearch indices
+# on a daily basis. It runs a container that executes the sentiment analysis
+# script sequentially on three different indices: artists, trump, and climate.
+#
+# The CronJob provides:
+# 1. Automated daily processing of multiple indices
+# 2. Resource limits and requests to ensure appropriate allocation
+# 3. Volume mounts for the pre-trained model and analysis script
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sentiment-analysis-index-cronjob
+  namespace: elastic
+spec:
+  schedule: "0 14 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: sentiment-analyzer
+            image: yucai5/sentiment-analyzer:lightweight
+            imagePullPolicy: Always
+            command: ["/bin/bash", "-c"]
+            args:
+            - |
+              echo "Copying script from ConfigMap..."
+              cp /scripts/sentiment_analyzer_index.py /app/
+              chmod +x /app/sentiment_analyzer_index.py
+              
+              echo "Starting sentiment analysis for artists index..."
+              python /app/sentiment_analyzer_index.py \
+                --index artists \
+                --max-docs 1000 \
+                --batch-size 500 \
+                --threads 2 \
+                --shard-index 0 \
+                --shard-total 1
+              
+              echo "Starting sentiment analysis for trump index..."
+              python /app/sentiment_analyzer_index.py \
+                --index trump \
+                --max-docs 1000 \
+                --batch-size 500 \
+                --threads 2 \
+                --shard-index 0 \
+                --shard-total 1
+
+              echo "Starting sentiment analysis for climate index..."
+              python /app/sentiment_analyzer_index.py \
+                --index climate \
+                --max-docs 1000 \
+                --batch-size 500 \
+                --threads 2 \
+                --shard-index 0 \
+                --shard-total 1
+            resources:
+              requests:
+                memory: "1Gi"
+                cpu: "500m"
+                ephemeral-storage: "2Gi"
+              limits:
+                memory: "2Gi"
+                cpu: "1"
+                ephemeral-storage: "4Gi"
+            volumeMounts:
+            - name: model-storage
+              mountPath: "/models"
+            - name: script-storage
+              mountPath: "/scripts"
+          restartPolicy: OnFailure
+          volumes:
+          - name: model-storage
+            persistentVolumeClaim:
+              claimName: roberta-model-perfretain
+          - name: script-storage
+            configMap:
+              name: sentiment-analyzer-index-scripts
+              defaultMode: 0755

@@ -1,0 +1,6 @@
+fastapi
+httpx
+pytest
+pylint
+pydantic-settings
+elasticsearch

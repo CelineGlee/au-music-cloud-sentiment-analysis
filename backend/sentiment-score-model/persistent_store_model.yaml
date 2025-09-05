@@ -1,0 +1,23 @@
+# This Kubernetes PersistentVolumeClaim (PVC) manifest defines storage that will be used
+# to store the RoBERTa sentiment analysis model files. The PVC provides persistent storage
+# that survives pod restarts and terminations, ensuring the downloaded model is retained
+# for use by multiple pods.
+#
+# The PVC requests 4GB of storage with ReadWriteOnce access mode, meaning it can be
+# mounted for read/write access by a single node at a time.
+#
+# The "perfretain" storage class indicates this uses performance-optimized storage
+# that retains data even when no pods are using it.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: roberta-model-perfretain
+  namespace: elastic
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
+  storageClassName: perfretain

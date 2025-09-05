@@ -1,0 +1,21 @@
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm install prometheus prometheus-community/kube-prometheus-stack -n monitor -f values-monitor.yaml
+
+helm install prometheus-blackbox-exporter prometheus-community/prometheus-blackbox-exporter \
+  --namespace monitor \
+  --set serviceMonitor.enabled=true
+
+kubectl apply -f blackbox-exporter-cm.yaml
+
+helm upgrade prometheus-blackbox-exporter prometheus-community/prometheus-blackbox-exporter \
+  --namespace monitor \
+  -f blackbox-exporter-values.yaml
+
+  kubectl apply -f elasticsearch-blackbox-servicemonitor.yaml
+
+helm repo update
+helm upgrade prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitor \
+  --set prometheusOperator.enabled=true

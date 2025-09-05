@@ -1,0 +1,248 @@
+stages:
+  - pylint
+  - unit-test
+  - deploy
+  - e2e-test
+
+pylint:
+  image: python:3.11-slim
+  stage: pylint
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  before_script:
+    - echo "Setting up pylint in GitLab runner..."
+    - pip install -r fission/package/requirements.txt
+    - pip install pylint
+  script:
+    - echo "Validating all python files in fission/package/functions with Pylint"
+    - pylint fission/package/functions --max-line-length=120 --rcfile=.pylintrc --fail-under=6.0
+    - echo "Pylint validation passed"
+
+unit-tests:
+  image: python:3.11-slim
+  stage: unit-test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  before_script:
+    - echo "Installing project dependencies..."
+    - pip install -r test/test-requirements.txt
+    - echo "Preparing Pytest on GitLab runner..."
+    - pip install pytest coverage
+  script:
+    - echo "Running unit tests"
+    - coverage run -m pytest test/test_*.py
+    - coverage report
+    - coverage html
+    - echo "Unit tests passed."
+
+deploy-fetch:
+  image:
+    name: alpine/k8s:1.29.15
+  variables:
+    KUBE_CONTEXT: yeeshen/comp90024_team_81:my-agent
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  before_script:
+    - echo "Checking GitLab agent on k8s cluster is reachable"
+    - kubectl config get-contexts
+    - kubectl config use-context yeeshen/comp90024_team_81:my-agent
+    - kubectl get pods
+    - echo "Setting up fission on GitLab runner"
+    - apk update && apk add --no-cache unzip zip 
+    - curl -Lo /tmp/fission https://github.com/fission/fission/releases/download/v1.21.0/fission-v1.21.0-linux-amd64 && chmod +x /tmp/fission && mv /tmp/fission /usr/local/bin/
+    - mkdir /tmp/build
+    - (
+    - cd fission/package
+    - zip -r package.zip .
+    - mv package.zip ../
+    - )
+    - |
+      cat <<EOF > reddit-secrets.yaml
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-id
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_ID: "$REDDIT_CLIENT_ID"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-secret
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_SECRET: "$REDDIT_CLIENT_SECRET"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-user-agent
+      type: Opaque
+      stringData:
+        REDDIT_USER_AGENT: "$REDDIT_USER_AGENT"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-id-1
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_ID_1: "$REDDIT_CLIENT_ID_1"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-secret-1
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_SECRET_1: "$REDDIT_CLIENT_SECRET_1"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-user-agent-1
+      type: Opaque
+      stringData:
+        REDDIT_USER_AGENT_1: "$REDDIT_USER_AGENT_1"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-refresh-token-1
+      type: Opaque
+      stringData:
+        REDDIT_REFRESH_TOKEN_1: "$REDDIT_REFRESH_TOKEN_1"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-id-2
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_ID_2: "$REDDIT_CLIENT_ID_2"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-secret-2
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_SECRET_2: "$REDDIT_CLIENT_SECRET_2"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-user-agent-2
+      type: Opaque
+      stringData:
+        REDDIT_USER_AGENT_2: "$REDDIT_USER_AGENT_2"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-refresh-token-2
+      type: Opaque
+      stringData:
+        REDDIT_REFRESH_TOKEN_2: "$REDDIT_REFRESH_TOKEN_2"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-id-3
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_ID_3: "$REDDIT_CLIENT_ID_3"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-client-secret-3
+      type: Opaque
+      stringData:
+        REDDIT_CLIENT_SECRET_3: "$REDDIT_CLIENT_SECRET_3"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-user-agent-3
+      type: Opaque
+      stringData:
+        REDDIT_USER_AGENT_3: "$REDDIT_USER_AGENT_3"
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: reddit-refresh-token-3
+      type: Opaque
+      stringData:
+        REDDIT_REFRESH_TOKEN_3: "$REDDIT_REFRESH_TOKEN_3"
+      EOF
+  script:
+    - kubectl apply -f reddit-secrets.yaml
+    - fission spec apply --specdir fission/specs
+    - sleep 240
+    - |
+      check_build_status() {
+        local pkg_name="$1"
+        local info_output
+        info_output=$(fission pkg info --name="$pkg_name")
+
+        if echo "$info_output" | grep -q 'failed'; then
+          echo "Package build failed for $pkg_name."
+          exit 1
+        elif echo "$info_output" | grep -q 'succeeded'; then
+          echo "Package build succeeded for $pkg_name."
+          exit 0
+        else
+          echo "Unknown build status for $pkg_name, defaulting to fail."
+          exit 1
+        fi
+      }
+    - check_build_status "my-package"
+
+# Run E2E test inside Kubernetes cluster
+e2e-test:
+  image:
+    name: alpine/k8s:1.29.15
+  stage: e2e-test
+  variables:
+    KUBE_CONTEXT: yeeshen/comp90024_team_81:my-agent
+    TARGET_NAMESPACE: default
+    TARGET_POD_NAME: e2e-test-$CI_JOB_ID
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  before_script:
+    - echo "Using Kubernetes context..."
+    - kubectl config use-context $KUBE_CONTEXT
+    - echo "Cleaning up any existing debug pod..."
+    - kubectl delete pod $TARGET_POD_NAME -n $TARGET_NAMESPACE --ignore-not-found
+    - echo "Creating fresh Python pod..."
+    - |
+      kubectl run $TARGET_POD_NAME -n $TARGET_NAMESPACE \
+        --image=python:3.9 \
+        --restart=Never \
+        --env=API_BASE_URL=http://analyser-api.default.svc.cluster.local:9090/ \
+        --command -- sleep 3600
+    - echo "Waiting for pod to be ready..."
+    - kubectl wait --for=condition=Ready pod/$TARGET_POD_NAME -n $TARGET_NAMESPACE --timeout=180s
+    - echo "Creating /app directory inside the pod..."
+    - kubectl exec -n $TARGET_NAMESPACE $TARGET_POD_NAME -- mkdir -p /app
+    - echo "Copying source code to pod..."
+    - kubectl cp ./test $TARGET_NAMESPACE/$TARGET_POD_NAME:/app/test
+    - echo "Installing dependencies inside pod..."
+    - |
+      kubectl exec -n $TARGET_NAMESPACE $TARGET_POD_NAME -- \
+        pip install httpx
+  script:
+    - echo "Running E2E test in pod..."
+    - |
+      kubectl exec -n $TARGET_NAMESPACE $TARGET_POD_NAME -- \
+        python /app/test/e2e_test.py
+    - echo "E2E test validation passed!"
+    - echo "Cleaning up test pod..."
+    - kubectl delete pod $TARGET_POD_NAME -n $TARGET_NAMESPACE --ignore-not-found=true
+    - echo "E2E test completed and pod deleted"
+
+  environment: production

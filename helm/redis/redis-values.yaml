@@ -1,0 +1,17 @@
+# redis-values.yaml
+redisSecret:
+  name: redis-secret
+  key: password
+
+master:
+  persistence:
+    enabled: true
+    storageClass: perfretain
+    size: 10Gi
+
+replica:
+  replicaCount: 1
+  persistence:
+    enabled: true
+    storageClass: perfretain
+    size: 10Gi

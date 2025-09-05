@@ -1,0 +1,33 @@
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  creationTimestamp: null
+  name: harvest-mastodon-entry
+spec:
+  InvokeStrategy:
+    ExecutionStrategy:
+      ExecutorType: newdeploy
+      MaxScale: 2
+      MinScale: 0
+      SpecializationTimeout: 120
+      TargetCPUPercent: 80
+    StrategyType: execution
+  concurrency: 500
+  environment:
+    name: python
+    namespace: ""
+  functionTimeout: 120
+  idletimeout: 120
+  package:
+    functionName: harvester.mastodon_entry
+    packageref:
+      name: my-package
+      namespace: ""
+  requestsPerPod: 10
+  resources:
+    limits:
+      cpu: "500m"   
+      memory: "128Mi" 
+    requests:
+      cpu: "100m"  
+      memory: "64Mi" 

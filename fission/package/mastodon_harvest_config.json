@@ -1,0 +1,57 @@
+{
+  "servers": {
+    "https://aus.social": {
+      "posts": "mastodon:aus_social:queue",
+      "ids": "mastodon:aus_social:ids",
+      "index": "mastodon-prod-v3"
+    },
+    "https://mastodon.au": {
+      "posts": "mastodon:mastodon_au:queue",
+      "ids": "mastodon:mastodon_au:ids",
+      "index": "mastodon-prod-v3"
+    },
+    "https://mastodon.social": {
+      "posts": "mastodon:mastodon_social_v2:queue",
+      "ids": "mastodon:mastodon_social_v2:ids",
+      "index": "mastodon-international-v2"
+    },
+    "https://masto.ai": {
+      "posts": "mastodon:masto_ai:queue",
+      "ids": "mastodon:mastodon_ai:ids",
+      "index": "mastodon-ai"
+    }
+  },
+  "digger" : [
+      {
+        "from-index":"mastodon-prod-v3",
+        "to-index":"artists",
+        "keywords": ["Bruno Mars","bruno","Lady Gaga","ladygaga","gaga","The Weeknd","theweeknd","weeknd","Billie Eilish","billieeilish","billie","Coldplay","Rihanna","riri","Kendrick Lamar","kendrick","kendricklamar","Ed Sheeran","edsheeran","Taylor Swift","taylorswift","Bad Bunny","badbunny","Ariana Grande","arianagrande","ariana","Drake","Justin Bieber","justinbieber","bieber","SZA","David Guetta","davidguetta","Maroon 5","maroon5","Post Malone","postmalone","Calvin Harris","calvinharris","Dua Lipa","dualipa","Eminem","J Balvin","jbalvin","Sia","Sabrina Carpenter","sabrinacarpenter","Sabrina","Katy Perry","katyperry","katy","Shakira","Sia","The Kid LAROI","kid laroi","thekidlaroi","AC/DC","acdc","ac-dc","Empire of the Sun","empireofthesun","Tame Impala","tameimpala","Vance Joy","vancejoy","Troye Sivan","troyesivan","CYRIL","Chase Atlantic","chaseatlantic","5 Seconds Of Summer","Five Seconds Of Summer","5secondsofsummer","5sos","Dean Lewis","deanlewis","Gotye","FISHER","PNAU","Kylie Minogue","kylie","kylieminogue"]
+      },
+      {
+        "from-index":"mastodon-prod-v3",
+        "to-index":"trump",
+        "keywords": ["trump","donaldtrump","donald trump"]
+      },
+      {
+        "from-index":"mastodon-prod-v3",
+        "to-index":"climate",
+        "keywords": ["climate change","global warming","climate crisis"]
+      },
+      {
+        "from-index":"mastodon-prod-v3",
+        "to-index":"musk",
+        "keywords": ["elon musk","elonmusk","musk"]
+      }
+    ]
+
+}
+
+
+
+
+
+
+
+
+
+    

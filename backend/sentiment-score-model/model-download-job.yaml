@@ -1,0 +1,62 @@
+# model-download-job.yaml
+#
+# This Kubernetes Job manifest defines a batch job that downloads and prepares
+# the RoBERTa sentiment analysis model for use in the application.
+#
+# The job creates a pod that:
+# 1. Cleans up any existing model files
+# 2. Downloads the RoBERTa model using the download_model.py script
+# 3. Verifies the downloaded files
+#
+# The model files are stored on a persistent volume so they can be accessed
+# by other pods in the cluster after download completes.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-download-job
+  namespace: elastic
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      containers:
+      - name: model-downloader
+        image: yucai5/sentiment-analyzer:lightweight
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          # clear exist model file
+          echo "Cleaning up existing model files..."
+          rm -rf /models/roberta-sentiment/model/*
+          rm -rf /models/roberta-sentiment/tokenizer/*
+          
+          mkdir -p /models/roberta-sentiment/model
+          mkdir -p /models/roberta-sentiment/tokenizer
+          
+          # install new model
+          echo "Starting model download..."
+          python /app/download_model.py
+          
+          # check whether or not download successfully
+          echo "Verifying downloaded files..."
+          ls -la /models/roberta-sentiment/model
+          ls -la /models/roberta-sentiment/tokenizer
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+            ephemeral-storage: "2Gi"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+            ephemeral-storage: "4Gi"
+        volumeMounts:
+        - name: model-storage
+          mountPath: "/models"
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: roberta-model-perfretain # PVC that provides the persistent storage
+      restartPolicy: OnFailure

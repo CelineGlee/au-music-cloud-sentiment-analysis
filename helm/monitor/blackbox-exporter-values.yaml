@@ -1,0 +1,6 @@
+config:
+  existingConfigMap: blackbox-exporter-cm
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    release: prometheus

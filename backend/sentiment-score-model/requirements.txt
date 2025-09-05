@@ -1,0 +1,5 @@
+--find-links https://download.pytorch.org/whl/cpu
+elasticsearch==8.5.1
+torch>=2.0.1+cpu
+transformers>=4.30.0
+tqdm>=4.65.0

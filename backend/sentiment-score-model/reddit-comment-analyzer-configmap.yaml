@@ -1,0 +1,256 @@
+# This ConfigMap contains the Job definitions for multiple shards of the Reddit comment index
+# sentiment analysis workload. It implements a data parallelism pattern where the dataset
+# is divided into 5 shards, with each shard processed independently by a separate Kubernetes Job.
+#
+# This approach allows for:
+# 1. Horizontal scaling of the sentiment analysis workload
+# 2. Faster processing through parallel execution
+# 3. Better resource utilization by distributing the work
+# 4. Fault isolation - if one shard fails, others continue processing
+#
+# The ConfigMap stores YAML templates for each shard's Job definition rather than
+# the actual Job objects themselves. These templates are applied by the CronJob controller.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reddit-comment-shards-configmap
+  namespace: elastic
+data:
+  shard0.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: reddit-comment-shard0-job
+      namespace: elastic
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          containers:
+          - name: sentiment-analyzer
+            image: yucai5/sentiment-analyzer:lightweight
+            imagePullPolicy: Always
+            command: ["python"]
+            args:
+            - "/app/reddit_comment_analyzer.py"
+            - "--shard-index"
+            - "0"
+            - "--shard-total"
+            - "5"
+            - "--max-docs"
+            - "100000"
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "200m"
+                ephemeral-storage: "5Gi"
+              limits:
+                memory: "1Gi"
+                cpu: "800m"
+                ephemeral-storage: "10Gi"
+            volumeMounts:
+            - name: model-storage
+              mountPath: "/models"
+            - name: parallel-script
+              mountPath: "/app/reddit_comment_analyzer.py"
+              subPath: "reddit_comment_analyzer.py"
+          volumes:
+          - name: model-storage
+            persistentVolumeClaim:
+              claimName: roberta-model-perfretain
+          - name: parallel-script
+            configMap:
+              name: reddit-comment-analyzer-script
+              defaultMode: 0755
+          restartPolicy: OnFailure
+
+  shard1.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: reddit-comment-shard1-job
+      namespace: elastic
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          containers:
+          - name: sentiment-analyzer
+            image: yucai5/sentiment-analyzer:lightweight
+            imagePullPolicy: Always
+            command: ["python"]
+            args:
+            - "/app/reddit_comment_analyzer.py"
+            - "--shard-index"
+            - "1"
+            - "--shard-total"
+            - "5"
+            - "--max-docs"
+            - "100000"
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "200m"
+                ephemeral-storage: "5Gi"
+              limits:
+                memory: "1Gi"
+                cpu: "800m"
+                ephemeral-storage: "10Gi"
+            volumeMounts:
+            - name: model-storage
+              mountPath: "/models"
+            - name: parallel-script
+              mountPath: "/app/reddit_comment_analyzer.py"
+              subPath: "reddit_comment_analyzer.py"
+          volumes:
+          - name: model-storage
+            persistentVolumeClaim:
+              claimName: roberta-model-perfretain
+          - name: parallel-script
+            configMap:
+              name: reddit-comment-analyzer-script
+              defaultMode: 0755
+          restartPolicy: OnFailure
+
+  shard2.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: reddit-comment-shard2-job
+      namespace: elastic
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          containers:
+          - name: sentiment-analyzer
+            image: yucai5/sentiment-analyzer:lightweight
+            imagePullPolicy: Always
+            command: ["python"]
+            args:
+            - "/app/reddit_comment_analyzer.py"
+            - "--shard-index"
+            - "2"
+            - "--shard-total"
+            - "5"
+            - "--max-docs"
+            - "100000"
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "300m"
+                ephemeral-storage: "5Gi"
+              limits:
+                memory: "1.5Gi"
+                cpu: "800m"
+                ephemeral-storage: "10Gi"
+            volumeMounts:
+            - name: model-storage
+              mountPath: "/models"
+            - name: parallel-script
+              mountPath: "/app/reddit_comment_analyzer.py"
+              subPath: "reddit_comment_analyzer.py"
+          volumes:
+          - name: model-storage
+            persistentVolumeClaim:
+              claimName: roberta-model-perfretain
+          - name: parallel-script
+            configMap:
+              name: reddit-comment-analyzer-script
+              defaultMode: 0755
+          restartPolicy: OnFailure
+  shard3.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: reddit-comment-shard3-job
+      namespace: elastic
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          containers:
+          - name: sentiment-analyzer
+            image: yucai5/sentiment-analyzer:lightweight
+            imagePullPolicy: Always
+            command: ["python"]
+            args:
+            - "/app/reddit_comment_analyzer.py"
+            - "--shard-index"
+            - "3"
+            - "--shard-total"
+            - "5"
+            - "--max-docs"
+            - "100000"
+            resources:
+              requests:
+                memory: "768Mi"
+                cpu: "300m"
+                ephemeral-storage: "5Gi"
+              limits:
+                memory: "1.5Gi"
+                cpu: "800m"
+                ephemeral-storage: "10Gi"
+            volumeMounts:
+            - name: model-storage
+              mountPath: "/models"
+            - name: parallel-script
+              mountPath: "/app/reddit_comment_analyzer.py"
+              subPath: "reddit_comment_analyzer.py"
+          volumes:
+          - name: model-storage
+            persistentVolumeClaim:
+              claimName: roberta-model-perfretain
+          - name: parallel-script
+            configMap:
+              name: reddit-comment-analyzer-script
+              defaultMode: 0755
+          restartPolicy: OnFailure
+  shard4.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: reddit-comment-shard4-job
+      namespace: elastic
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          containers:
+          - name: sentiment-analyzer
+            image: yucai5/sentiment-analyzer:lightweight
+            imagePullPolicy: Always
+            command: ["python"]
+            args:
+            - "/app/reddit_comment_analyzer.py"
+            - "--shard-index"
+            - "4"
+            - "--shard-total"
+            - "5"
+            - "--max-docs"
+            - "100000"
+            resources:
+              requests:
+                memory: "768Mi"
+                cpu: "300m"
+                ephemeral-storage: "5Gi"
+              limits:
+                memory: "1.5Gi"
+                cpu: "800m"
+                ephemeral-storage: "10Gi"
+            volumeMounts:
+            - name: model-storage
+              mountPath: "/models"
+            - name: parallel-script
+              mountPath: "/app/reddit_comment_analyzer.py"
+              subPath: "reddit_comment_analyzer.py"
+          volumes:
+          - name: model-storage
+            persistentVolumeClaim:
+              claimName: roberta-model-perfretain
+          - name: parallel-script
+            configMap:
+              name: reddit-comment-analyzer-script
+              defaultMode: 0755
+          restartPolicy: OnFailure

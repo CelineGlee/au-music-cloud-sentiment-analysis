@@ -1,0 +1,36 @@
+{
+    "mappings": {
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "original_id": {
+          "type": "keyword"
+        },
+        "created_utc": {
+          "type": "date"
+        },
+        "title": {
+          "type": "text"
+        },
+        "author": {
+          "type": "keyword"
+        },
+        "score": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text"
+        }
+      }
+    },
+    "settings": {
+        "index": {
+            "number_of_shards": 2,
+            "number_of_replicas": 1
+        }
+    }
+}

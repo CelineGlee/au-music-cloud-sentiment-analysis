@@ -1,0 +1,23 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: redis-list-scaledobject
+  namespace: redis
+spec:
+  scaleTargetRef:
+    name: redis
+    kind: StatefulSet
+  pollingInterval: 60    # Check every 60 seconds
+  cooldownPeriod: 300    # Wait 300s before scaling down
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+    - type: redis
+      metadata:
+        address: redis-0.redis-headless.redis.svc.cluster.local:6379
+        listName: reddit:australianpolitics:queue
+        listLength: "700"
+        activationListLength: "500"
+        enableTLS: "false"
+        unsafeSsl: "false"
+        databaseIndex: "0"

@@ -1,0 +1,76 @@
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  name: harvest-reddit
+  namespace: default
+spec:
+  InvokeStrategy:
+    ExecutionStrategy:
+      ExecutorType: newdeploy
+      MaxScale: 2
+      MinScale: 0
+      SpecializationTimeout: 120
+      TargetCPUPercent: 80
+    StrategyType: execution
+  concurrency: 500
+  environment:
+    name: python
+    namespace: default
+  functionTimeout: 60
+  idletimeout: 120
+  package:
+    functionName: harvester.harvest_reddit
+    packageref:
+      name: my-package
+      namespace: default
+  requestsPerPod: 2
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "128Mi"
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+  podspec:
+    containers:
+    - name: python
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "128Mi"
+        requests:
+          cpu: "100m"
+          memory: "64Mi"
+    restartPolicy: Never
+    backoffLimit: 3
+  secrets:
+    - name: reddit-client-id
+      namespace: default
+    - name: reddit-client-secret
+      namespace: default
+    - name: reddit-user-agent
+      namespace: default
+    - name: reddit-client-id-1
+      namespace: default
+    - name: reddit-client-secret-1
+      namespace: default
+    - name: reddit-user-agent-1
+      namespace: default
+    - name: reddit-refresh-token-1
+      namespace: default
+    - name: reddit-client-id-2
+      namespace: default
+    - name: reddit-client-secret-2
+      namespace: default
+    - name: reddit-user-agent-2
+      namespace: default
+    - name: reddit-refresh-token-2
+      namespace: default
+    - name: reddit-client-id-3
+      namespace: default
+    - name: reddit-client-secret-3
+      namespace: default
+    - name: reddit-user-agent-3
+      namespace: default
+    - name: reddit-refresh-token-3
+      namespace: default

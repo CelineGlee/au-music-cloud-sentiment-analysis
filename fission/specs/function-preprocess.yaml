@@ -1,0 +1,33 @@
+apiVersion: fission.io/v1
+kind: Function
+metadata:
+  creationTimestamp: null
+  name: preprocess
+spec:
+  InvokeStrategy:
+    ExecutionStrategy:
+      ExecutorType: poolmgr
+      MaxScale: 2
+      MinScale: 1
+      SpecializationTimeout: 120
+      TargetCPUPercent: 80
+    StrategyType: execution
+  concurrency: 500
+  environment:
+    name: python
+    namespace: ""
+  functionTimeout: 60
+  idletimeout: 120
+  package:
+    functionName: pre_processor.main
+    packageref:
+      name: my-package
+      namespace: ""
+  requestsPerPod: 10
+  resources:
+    limits:
+      cpu: "500m"   
+      memory: "128Mi" 
+    requests:
+      cpu: "100m"  
+      memory: "64Mi" 

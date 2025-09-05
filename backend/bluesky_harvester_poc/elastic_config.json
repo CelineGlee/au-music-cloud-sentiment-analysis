@@ -1,0 +1,17 @@
+{
+    "mappings": {
+        "properties": {
+            "author": {"type": "keyword"},
+            "displayName": {"type": "keyword"},
+            "text": {"type": "text"},
+            "createdAt": {"type": "date"},
+            "fetchedAt": {"type": "date"}
+        }
+    },
+    "settings": {
+        "index": {
+            "number_of_shards": 2,
+            "number_of_replicas": 1
+        }
+    }
+}

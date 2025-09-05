@@ -1,0 +1,516 @@
+"""
+===============================================================================
+Team 81
+
+Members:
+- Adam McMillan (1393533)
+- Ryan Kuang (1547320)
+- Tim Shen (1673715)
+- Yili Liu (883012)
+- Yuting Cai (1492060)
+
+===============================================================================
+"""
+
+import time
+import torch
+from elasticsearch import Elasticsearch
+from tqdm import tqdm
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+import concurrent.futures
+import threading
+import argparse
+
+# Add argument parsing for sharding
+parser = argparse.ArgumentParser(description='Process documents with sentiment analysis in parallel')
+parser.add_argument('--shard-index', type=int, default=0, help='The shard index for this worker')
+parser.add_argument('--shard-total', type=int, default=1, help='Total number of shards')
+parser.add_argument('--max-docs', type=int, default=5000, help='Maximum number of documents to process per run')
+parser.add_argument('--batch-size', type=int, default=2000, help='Number of documents per batch')
+parser.add_argument('--threads', type=int, default=2, help='Number of threads for parallel processing')
+parser.add_argument('--index', type=str, required=True, help='Index to process')
+
+args = parser.parse_args()
+
+# Configuration parameters
+MAX_DOCS_PER_RUN = args.max_docs  # Maximum number of documents to process per run
+BATCH_SIZE = args.batch_size  # Number of documents per batch
+INDEX_NAME = args.index  # Index to process
+STATE_INDEX = "sentiment-processing-state"  # State index
+SHARD_INDEX = args.shard_index
+SHARD_TOTAL = args.shard_total
+NUM_THREADS = min(args.threads, 2) # limit 2 threads
+
+print(f"Starting worker {SHARD_INDEX + 1} of {SHARD_TOTAL} total shards")
+print(f"This worker will process up to {MAX_DOCS_PER_RUN} documents")
+print(f"Using {NUM_THREADS} threads for parallel processing")
+print(f"Batch size: {BATCH_SIZE}")
+print(f"Processing index: {INDEX_NAME}")
+
+# Elasticsearch connection configuration
+es_hosts = [
+    "https://elasticsearch-master.elastic.svc.cluster.local:9200",
+    "https://elasticsearch-master-0.elasticsearch-master-headless.elastic.svc.cluster.local:9200",
+    "https://elasticsearch-master-1.elasticsearch-master-headless.elastic.svc.cluster.local:9200",
+    "https://elasticsearch-master-2.elasticsearch-master-headless.elastic.svc.cluster.local:9200",
+]
+
+# Connect to Elasticsearch
+es = None
+for es_url in es_hosts:
+    try:
+        print(f"Attempting to connect to: {es_url}")
+        es = Elasticsearch(
+            [es_url],
+            verify_certs=False,
+            ssl_show_warn=False,
+            ssl_assert_hostname=False,
+            ssl_assert_fingerprint=None,
+            basic_auth=("elastic", "elastic"),
+            request_timeout=60
+        )
+        if es.ping():
+            print(f"Successfully connected to: {es_url}")
+            break
+    except Exception as e:
+        print(f"Connection failed: {e}")
+
+if not es:
+    print("Unable to connect to Elasticsearch")
+    exit(1)
+
+# Load model
+print("Loading model...")
+MODEL_PATH = "/models/roberta-sentiment"
+try:
+    tokenizer = AutoTokenizer.from_pretrained(f"{MODEL_PATH}/tokenizer")
+    model = AutoModelForSequenceClassification.from_pretrained(f"{MODEL_PATH}/model")
+    print("Successfully loaded model from persistent storage")
+except Exception as e:
+    print(f"Failed to load model from persistent storage: {e}")
+    MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+    print("Successfully downloaded model from HuggingFace")
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+print(f"Using device: {device}")
+
+# Create locks for thread-safe operations
+model_lock = threading.Lock()
+cache_lock = threading.Lock()
+
+# Ensure state index exists
+def ensure_state_index():
+    if not es.indices.exists(index=STATE_INDEX):
+        print(f"Creating state index: {STATE_INDEX}")
+
+        es.indices.create(
+            index=STATE_INDEX,
+            settings={"number_of_shards": 1, "number_of_replicas": 0},
+            mappings={
+                "properties": {
+                    "index_name": {"type": "keyword"},
+                    "shard_index": {"type": "integer"},
+                    "last_id": {"type": "keyword"},
+                    "processed": {"type": "long"},
+                    "total": {"type": "long"},
+                    "last_updated": {"type": "date"}
+                }
+            }
+        )
+
+
+# Get processing state
+def get_processing_state():
+    ensure_state_index()
+    shard_state_id = f"{INDEX_NAME}-shard-{SHARD_INDEX}"
+    try:
+        if es.exists(index=STATE_INDEX, id=shard_state_id):
+            return es.get(index=STATE_INDEX, id=shard_state_id)["_source"]
+        else:
+            initial_state = {
+                "index_name": INDEX_NAME,
+                "shard_index": SHARD_INDEX,
+                "last_id": "",
+                "processed": 0,
+                "total": 0,
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S")
+            }
+            es.index(index=STATE_INDEX, id=shard_state_id, document=initial_state)
+            return initial_state
+    except Exception as e:
+        print(f"Failed to get state: {e}")
+        return {
+            "index_name": INDEX_NAME,
+            "shard_index": SHARD_INDEX,
+            "last_id": "",
+            "processed": 0,
+            "total": 0,
+            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S")
+        }
+
+# Update processing state for this shard
+def update_processing_state(last_id, processed, total):
+    shard_state_id = f"{INDEX_NAME}-shard-{SHARD_INDEX}"
+    try:
+        # Get current count of documents with sentiment labels
+        labeled_count = es.count(
+            index=INDEX_NAME,
+            query={"exists": {"field": "roberta_sentiment_label"}}
+        )["count"]
+
+        es.update(
+            index=STATE_INDEX,
+            id=shard_state_id,
+            doc={
+                "last_id": last_id,
+                "processed": processed,
+                "total": total,
+                "labeled_count": labeled_count,
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S")
+            }
+        )
+        if total > 0:
+            progress = (processed / total) * 100
+            print(f"Shard {SHARD_INDEX} progress: {processed}/{total} ({progress:.2f}%)")
+    except Exception as e:
+        print(f"Failed to update state: {e}")
+
+
+# Thread-safe sentiment analysis function
+def get_sentiment_thread_safe(text):
+    if not text or not isinstance(text, str):
+        return {"negative": 0.0, "neutral": 0.0, "positive": 0.0}
+
+    try:
+        # Use lock to ensure thread safety during model inference
+        with model_lock:
+            inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+
+            scores = torch.nn.functional.softmax(outputs.logits, dim=1)
+        return {
+            "negative": scores[0][0].item(),
+            "neutral": scores[0][1].item(),
+            "positive": scores[0][2].item()
+        }
+    except Exception as e:
+        print(f"Sentiment analysis failed: {e}")
+        return {"negative": 0.0, "neutral": 0.0, "positive": 0.0}
+
+
+# Auxiliary function: Get the number of deleted documents
+def get_deleted_count():
+    try:
+        stats = es.indices.stats(index=INDEX_NAME)
+        return stats['indices'][INDEX_NAME]['primaries']['docs']['deleted']
+    except Exception as e:
+        print(f"Failed to get deleted count: {e}")
+        return 0
+
+
+# Process a single document
+def process_single_document(hit, content_hash_cache):
+    doc_id = hit["_id"]
+    doc_source = hit["_source"]
+
+    # Check if content exists - look for real content field
+    content = None
+    if "content" in doc_source and isinstance(doc_source["content"], str):
+        content = doc_source["content"]
+    elif "body" in doc_source and isinstance(doc_source["body"], str):
+        content = doc_source["body"]
+    elif "selftext" in doc_source and isinstance(doc_source["selftext"], str):
+        content = doc_source["selftext"]
+    if not content:
+        return None
+
+    # Check cache with thread safety
+    content_hash = hash(content)
+    sentiment_scores = None
+
+    with cache_lock:
+        if content_hash in content_hash_cache:
+            sentiment_scores = content_hash_cache[content_hash]
+
+    # If not in cache, perform sentiment analysis
+    if sentiment_scores is None:
+        sentiment_scores = get_sentiment_thread_safe(content)
+        with cache_lock:
+            content_hash_cache[content_hash] = sentiment_scores
+
+    sentiment_label = max(sentiment_scores, key=sentiment_scores.get)
+
+    # Return document data for bulk update
+    return {
+        "doc_id": doc_id,
+        "seq_no": hit.get("_seq_no"),
+        "primary_term": hit.get("_primary_term"),
+        "sentiment_scores": sentiment_scores,
+        "sentiment_label": sentiment_label
+    }
+
+
+# Main processing function
+def process_documents():
+    # Get current state for this shard
+    state = get_processing_state()
+    processed_count = state.get("processed", 0)
+
+    # Check if index exists
+    if not es.indices.exists(index=INDEX_NAME):
+        print(f"Index {INDEX_NAME} does not exist")
+        return
+
+    # Count total documents
+    total_docs = es.count(index=INDEX_NAME)["count"]
+
+    # Create a query to find unprocessed documents
+    query = {
+        "bool": {
+            "must_not": [
+                {"exists": {"field": "roberta_sentiment"}},
+                {"exists": {"field": "roberta_sentiment_label"}}
+            ]
+        }
+    }
+
+    # Calculate documents to be processed by this shard
+    to_process = es.count(index=INDEX_NAME, query=query)["count"]
+    deleted_count = get_deleted_count()
+
+    print(f"Shard {SHARD_INDEX}: Index {INDEX_NAME} has a total of {total_docs} documents")
+    print(f"Shard {SHARD_INDEX}: Documents pending processing in this shard: {to_process}")
+    print(f"Shard {SHARD_INDEX}: Already processed in this shard: {processed_count} documents")
+    print(f"Deleted documents in index: {deleted_count}")
+
+    if to_process == 0:
+        print(f"Shard {SHARD_INDEX}: All documents in this shard are analyzed!")
+        return
+
+    # Limit the number of documents to process in this run
+    docs_this_run = min(MAX_DOCS_PER_RUN, to_process)
+    print(f"Shard {SHARD_INDEX}: This run will process up to {docs_this_run} documents")
+
+    # Content hash cache to avoid repeated processing of the same content
+    content_hash_cache = {}
+
+    # Start processing
+    processed_this_run = 0
+    last_id = None
+    max_retries = 3
+    retry_count = 0
+
+    # Processing loop with retry mechanism
+    while processed_this_run < docs_this_run and retry_count < max_retries:
+        try:
+            # Initialize or reinitialize search
+            response = es.search(
+                index=INDEX_NAME,
+                query=query,
+                size=BATCH_SIZE,
+                _source=["content", "body", "selftext"],  # Add possible text fields
+                version=True,
+                scroll="10m"  # Increased to 10 minutes for larger batches
+            )
+
+            scroll_id = response["_scroll_id"]
+            hits = response["hits"]["hits"]
+
+            # Process batches
+            while hits and processed_this_run < docs_this_run:
+                print(f"Shard {SHARD_INDEX}: Processing a batch of {len(hits)} documents")
+
+                # Use ThreadPoolExecutor for parallel processing
+                results = []
+                with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+                    # Create a list of futures
+                    futures = [executor.submit(process_single_document, hit, content_hash_cache) for hit in hits]
+
+                    # Process results as they complete
+                    for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
+                        try:
+                            result = future.result()
+                            if result:
+                                results.append(result)
+                        except Exception as e:
+                            print(f"Error processing document: {e}")
+
+                # Prepare bulk update actions
+                bulk_actions = []
+                for result in results:
+                    update_action = {"update": {"_index": INDEX_NAME, "_id": result["doc_id"]}}
+
+                    # Add optimistic concurrency control if available
+                    if result["seq_no"] is not None and result["primary_term"] is not None:
+                        update_action["update"]["_if_seq_no"] = result["seq_no"]
+                        update_action["update"]["_if_primary_term"] = result["primary_term"]
+
+                    bulk_actions.append(update_action)
+                    bulk_actions.append({
+                        "doc": {
+                            "roberta_sentiment": result["sentiment_scores"],
+                            "roberta_sentiment_label": result["sentiment_label"]
+                        }
+                    })
+
+                # Perform batch updates
+                if bulk_actions:
+                    bulk_retry = 0
+                    max_bulk_retries = 3
+                    success_count = 0
+
+                    while bulk_retry < max_bulk_retries:
+                        try:
+                            response = es.bulk(operations=bulk_actions, refresh=True)
+
+                            # Count successful updates
+                            success_count = 0
+                            conflict_count = 0
+
+                            for i, item in enumerate(response['items']):
+                                if i % 2 == 0:  # Only count update operations
+                                    status = item.get('update', {}).get('status')
+                                    if status in (200, 201):
+                                        success_count += 1
+                                    elif status == 409:  # Conflict
+                                        conflict_count += 1
+
+                            if conflict_count > 0:
+                                print(f"Encountered {conflict_count} conflicts during update")
+
+                            break  # Exit retry loop on success
+
+                        except Exception as e:
+                            bulk_retry += 1
+                            print(f"Bulk update failed (attempt {bulk_retry}/{max_bulk_retries}): {e}")
+                            if bulk_retry < max_bulk_retries:
+                                print(f"Retrying in {2 ** bulk_retry} seconds...")
+                                time.sleep(2 ** bulk_retry)  # Exponential backoff
+                            else:
+                                print(f"Max bulk retries reached, continuing with next batch")
+                                break
+
+                # Update tracking information
+                if results:
+                    last_id = results[-1]["doc_id"]
+
+                processed_this_run += success_count
+                total_processed = processed_count + processed_this_run
+
+                # Update processing status
+                update_processing_state(last_id, total_processed, total_docs)
+
+                print(
+                    f"Shard {SHARD_INDEX} batch stats: {len(hits)} documents retrieved, {len(results)} processed, {success_count} successful updates")
+                print(
+                    f"Shard {SHARD_INDEX}: Current progress: {total_processed}/{total_docs} ({(total_processed / total_docs) * 100:.2f}%)")
+
+                if processed_this_run >= docs_this_run:
+                    print(f"Shard {SHARD_INDEX}: Reached document limit of {docs_this_run} for this run")
+                    break
+
+                # Get next batch
+                try:
+                    # Calculate remaining docs to process
+                    remaining = docs_this_run - processed_this_run
+                    batch_size = min(BATCH_SIZE, remaining)
+
+                    response = es.scroll(
+                        scroll_id=scroll_id,
+                        scroll="10m"  # Keep extended timeout
+                    )
+
+                    scroll_id = response["_scroll_id"]
+                    hits = response["hits"]["hits"]
+
+                    # If we got fewer hits than expected but haven't reached our limit,
+                    # we might have reached the end of available documents
+                    if not hits and processed_this_run < docs_this_run:
+                        print(f"Shard {SHARD_INDEX}: No more documents to process in this run")
+                        break
+                except Exception as scroll_error:
+                    # Handle search context lost errors
+                    if "No search context found" in str(scroll_error) or "search_phase_execution_exception" in str(
+                            scroll_error):
+                        print(f"Search context lost: {scroll_error}. Reinitializing search...")
+
+                        # Check if we still have documents to process
+                        remaining_count = es.count(index=INDEX_NAME, query=query)["count"]
+                        if remaining_count > 0 and processed_this_run < docs_this_run:
+                            print(f"Still have {remaining_count} documents to process. Reinitializing search...")
+
+                            # Reinitialize search
+                            response = es.search(
+                                index=INDEX_NAME,
+                                query=query,
+                                size=BATCH_SIZE,
+                                _source=["content", "body", "selftext"],
+                                version=True,
+                                scroll="10m"
+                            )
+
+                            scroll_id = response["_scroll_id"]
+                            hits = response["hits"]["hits"]
+
+                            if not hits:
+                                print("No documents returned after reinitialization. Breaking loop.")
+                                break
+                        else:
+                            print("No more documents to process after context loss. Breaking loop.")
+                            break
+                    else:
+                        # For other errors, raise to outer exception handler
+                        raise scroll_error
+
+                # Small pause between batches to reduce system load
+                time.sleep(1)
+
+            # Clean up scroll context
+            try:
+                es.clear_scroll(scroll_id=scroll_id)
+            except Exception as e:
+                print(f"Warning: Failed to clear scroll context: {e}")
+            # If we've reached this point without errors, break the retry loop
+            break
+
+        except Exception as e:
+            retry_count += 1
+            print(f"Shard {SHARD_INDEX}: Processing attempt {retry_count}/{max_retries} failed: {e}")
+
+            if retry_count < max_retries:
+                wait_time = 5 * (2 ** (retry_count - 1))  # Exponential backoff
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"Max retries ({max_retries}) reached. Giving up this run.")
+                break
+
+    # Final cleanup and status
+    content_hash_cache.clear()
+
+    # Final status update
+    print(f"Shard {SHARD_INDEX}: This run processed {processed_this_run} documents")
+    print(
+        f"Shard {SHARD_INDEX}: Total processed in this shard: {processed_count + processed_this_run} documents out of {total_docs} total")
+    print(f"Current deleted documents: {get_deleted_count()}")
+
+    # Check if there are still documents to process
+    remaining_count = es.count(index=INDEX_NAME, query=query)["count"]
+    if remaining_count > 0:
+        print(f"Shard {SHARD_INDEX}: Still has {remaining_count} documents left to process.")
+        print(f"Shard {SHARD_INDEX}: Job should be restarted to continue processing.")
+    else:
+        print(f"Shard {SHARD_INDEX}: All documents in this shard have been processed!")
+
+
+# Execute processing
+print(f"Starting to process index: {INDEX_NAME} with shard {SHARD_INDEX} of {SHARD_TOTAL}")
+process_documents()
+print(f"Processing of index {INDEX_NAME} shard {SHARD_INDEX} completed")

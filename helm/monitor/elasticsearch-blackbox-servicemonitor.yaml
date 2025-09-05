@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: elasticsearch-blackbox
+  namespace: monitor
+  labels:
+    release: prometheus  # Match your Prometheus ServiceMonitor selector
+spec:
+  selector:
+    matchLabels:
+      app: elasticsearch-master  # Adjust to match the labels of the elasticsearch-master service
+  namespaceSelector:
+    matchNames:
+      - elastic  # Target the elastic namespace
+  endpoints:
+  - port: "9200"  # Adjust to the port name exposed by elasticsearch-master (e.g., http or 9200)
+    interval: 15s
+    scheme: https
+    path: /_cluster/health
+    relabelings:  # Changed from relabel_configs to relabelings
+    - sourceLabels: [__address__]
+      targetLabel: __param_target
+    - sourceLabels: [__param_target]
+      targetLabel: instance
+    - targetLabel: __address__
+      replacement: prometheus-blackbox-exporter.monitor.svc:9115  # Blackbox Exporter service
+    params:
+      username:
+      - "elastic"
+      password:
+      - "elastic"

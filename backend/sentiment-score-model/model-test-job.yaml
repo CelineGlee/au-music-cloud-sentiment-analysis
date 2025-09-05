@@ -1,0 +1,54 @@
+# using for test whether the model is downloaded in pvc successfully
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-test-job
+  namespace: elastic
+spec:
+  template:
+    spec:
+      containers:
+      - name: tester
+        image: yucai5/sentiment-analyzer:lightweight
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "Testing model load and inference..."
+          python -c "
+          from transformers import AutoTokenizer, AutoModelForSequenceClassification
+          import torch
+          
+          try:
+              print('Loading tokenizer...')
+              tokenizer = AutoTokenizer.from_pretrained('/models/roberta-sentiment/tokenizer')
+              print('Tokenizer loaded successfully')
+              
+              print('Loading model...')
+              model = AutoModelForSequenceClassification.from_pretrained('/models/roberta-sentiment/model')
+              print('Model loaded successfully')
+              
+              # Test simple inference
+              print('Testing inference...')
+              texts = ['This is great!', 'This is terrible!', 'This is okay.']
+              for text in texts:
+                  inputs = tokenizer(text, return_tensors='pt')
+                  with torch.no_grad():
+                      outputs = model(**inputs)
+                  scores = torch.nn.functional.softmax(outputs.logits, dim=1)
+                  print(f'Text: {text}')
+                  print(f'Negative: {scores[0][0].item():.4f}, Neutral: {scores[0][1].item():.4f}, Positive: {scores[0][2].item():.4f}')
+              
+              print('✅ Model test completed successfully!')
+          except Exception as e:
+              print(f'❌ Error testing model: {e}')
+          "
+        volumeMounts:
+        - name: model-storage
+          mountPath: "/models"
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: roberta-model-perfretain
+      restartPolicy: Never

@@ -1,0 +1,23 @@
+apiVersion: fission.io/v1
+kind: MessageQueueTrigger
+metadata:
+  creationTimestamp: null
+  name: reddit-comments-preprocess
+spec:
+  contentType: application/json
+  cooldownPeriod: 600
+  errorTopic: errors
+  functionref:
+    functionweights: null
+    name: reddit-comments-preprocess
+    type: name
+  maxReplicaCount: 2
+  maxRetries: 3
+  messageQueueType: redis
+  metadata:
+    address: redis-headless.redis.svc.cluster.local:6379
+    listName: reddit:comments:queue
+  minReplicaCount: 0
+  mqtkind: keda
+  pollingInterval: 60
+  topic: reddit:comments:queue

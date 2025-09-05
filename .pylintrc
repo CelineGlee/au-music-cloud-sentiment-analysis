@@ -1,0 +1,4 @@
+[MESSAGES CONTROL]
+
+; add errors to be ignored here, comma separated e.g. disable=x,y,z...
+disable=trailing-whitespace,invalid-name,broad-exception-caught,broad-exception-raised,raise-missing-from,too-many-arguments,too-many-positional-arguments,line-too-long

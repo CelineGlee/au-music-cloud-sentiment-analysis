@@ -1,0 +1,502 @@
+# This ConfigMap contains the Python script that performs sentiment analysis on mastodon-prod-v3 index.
+# The script uses a sharded approach to distribute processing across multiple workers,
+# with sophisticated checkpoint and recovery mechanisms to ensure resilience.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mastodon-sentiment-analyzer-script
+  namespace: elastic
+data:
+  mastodon_sentiment_analyzer.py: |
+    import time
+    import torch
+    from elasticsearch import Elasticsearch
+    from tqdm import tqdm
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+    import argparse
+
+    # Add argument parsing for sharding
+    parser = argparse.ArgumentParser(description='Process mastodon-prod-v3 with sentiment analysis in parallel')
+    parser.add_argument('--shard-index', type=int, default=0, help='The shard index for this worker')
+    parser.add_argument('--shard-total', type=int, default=1, help='Total number of shards')
+    parser.add_argument('--max-docs', type=int, default=100000, help='Maximum number of documents to process per run')
+    args = parser.parse_args()
+
+    # Configuration parameters
+    MAX_DOCS_PER_RUN = args.max_docs  # Maximum number of documents to process per run
+    BATCH_SIZE = 5000  # Number of documents need to be processed per batch
+    INDEX_NAME = "mastodon-prod-v3"  # Specific index name from ElasticSearch (the index name can be changed, here using "mastodon-prod-v3" as a case)
+    STATE_INDEX = "sentiment-processing-state"  # State index
+    SHARD_INDEX = args.shard_index
+    SHARD_TOTAL = args.shard_total
+
+    print(f"Starting worker {SHARD_INDEX + 1} of {SHARD_TOTAL} total shards")
+    print(f"This worker will process up to {MAX_DOCS_PER_RUN} documents")
+
+    # Elasticsearch connection configuration
+    es_hosts = [
+        "https://elasticsearch-master.elastic.svc.cluster.local:9200",
+        "https://elasticsearch-master-0.elasticsearch-master-headless.elastic.svc.cluster.local:9200",
+        "https://elasticsearch-master-1.elasticsearch-master-headless.elastic.svc.cluster.local:9200",
+        "https://elasticsearch-master-2.elasticsearch-master-headless.elastic.svc.cluster.local:9200",
+    ]
+
+    # Connect to Elasticsearch
+    es = None
+    for es_url in es_hosts:
+        try:
+            print(f"Attempting to connect to: {es_url}")
+            es = Elasticsearch(
+                [es_url],
+                verify_certs=False,
+                ssl_show_warn=False,
+                ssl_assert_hostname=False,
+                ssl_assert_fingerprint=None,
+                basic_auth=("elastic", "elastic"),
+                request_timeout=60
+            )
+            if es.ping():
+                print(f"Successfully connected to: {es_url}")
+                break
+        except Exception as e:
+            print(f"Connection failed: {e}")
+
+    if not es:
+        print("Unable to connect to Elasticsearch")
+        exit(1)
+
+    # Load model
+    print("Loading model...")
+    MODEL_PATH = "/models/roberta-sentiment"
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(f"{MODEL_PATH}/tokenizer")
+        model = AutoModelForSequenceClassification.from_pretrained(f"{MODEL_PATH}/model")
+        print("Successfully loaded model from persistent storage")
+    except Exception as e:
+        print(f"Failed to load model from persistent storage: {e}")
+
+        # If local loading fails, download the "cardiffnlp/twitter-roberta-base-sentiment-latest" model from HuggingFace
+        MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+        print("Successfully downloaded model from HuggingFace")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    print(f"Using device: {device}")
+
+    # Ensure that an index exists to track processing status
+    def ensure_state_index():
+        if not es.indices.exists(index=STATE_INDEX):
+            print(f"Creating state index: {STATE_INDEX}")
+
+            es.indices.create(
+                index=STATE_INDEX,
+                settings={"number_of_shards": 1, "number_of_replicas": 0},
+                mappings={
+                    "properties": {
+                        "index_name": {"type": "keyword"},
+                        "shard_index": {"type": "integer"},
+                        "last_id": {"type": "keyword"},
+                        "processed": {"type": "long"},
+                        "total": {"type": "long"},
+                        "last_updated": {"type": "date"},
+                        "position": {"type": "long"},  # Added for checkpoint
+                        "timestamp": {"type": "date"}  # Added for checkpoint
+                    }
+                }
+            )
+
+    # Get processing state in current shard
+    def get_processing_state():
+        ensure_state_index()
+        shard_state_id = f"{INDEX_NAME}-shard-{SHARD_INDEX}"
+        try:
+            if es.exists(index=STATE_INDEX, id=shard_state_id):
+                return es.get(index=STATE_INDEX, id=shard_state_id)["_source"]
+            else:
+                initial_state = {
+                    "index_name": INDEX_NAME,
+                    "shard_index": SHARD_INDEX,
+                    "last_id": "",
+                    "processed": 0,
+                    "total": 0,
+                    "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S")
+                }
+                es.index(index=STATE_INDEX, id=shard_state_id, document=initial_state)
+                return initial_state
+        except Exception as e:
+            print(f"Failed to get state: {e}")
+            return {
+                "index_name": INDEX_NAME,
+                "shard_index": SHARD_INDEX,
+                "last_id": "",
+                "processed": 0,
+                "total": 0,
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S")
+            }
+
+    # Update processing state
+    def update_processing_state(last_id, processed, total):
+        shard_state_id = f"{INDEX_NAME}-shard-{SHARD_INDEX}"
+        try:
+            labeled_count = es.count(index=INDEX_NAME, query={"exists": {"field": "roberta_sentiment_label"}})["count"]
+
+            es.update(
+                index=STATE_INDEX,
+                id=shard_state_id,
+                doc={
+                    "last_id": last_id,
+                    "processed": processed,
+                    "total": total,
+                    "labeled_count": labeled_count,
+                    "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S")
+                }
+            )
+            if total > 0:
+                progress = (processed / total) * 100
+                print(f"Shard {SHARD_INDEX} progress: {processed}/{total} ({progress:.2f}%)")
+        except Exception as e:
+            print(f"Failed to update state: {e}")
+            # Continue processing even if state update fails
+            pass
+
+    # Sentiment analysis function - Perform sentiment analysis on input text
+    def get_sentiment(text):
+        if not text or not isinstance(text, str) :
+            return {"negative": 0.0, "neutral": 0.0, "positive": 0.0}
+
+        try:
+            inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+
+            scores = torch.nn.functional.softmax(outputs.logits, dim=1)
+            return {
+                "negative": scores[0][0].item(),
+                "neutral": scores[0][1].item(),
+                "positive": scores[0][2].item()
+            }
+        except Exception as e:
+            print(f"Sentiment analysis failed: {e}")
+            return {"negative": 0.0, "neutral": 0.0, "positive": 0.0}
+
+
+    # Auxiliary function: Get the number of deleted documents
+    def get_deleted_count():
+        try:
+            stats = es.indices.stats(index=INDEX_NAME)
+            return stats['indices'][INDEX_NAME]['primaries']['docs']['deleted']
+        except Exception as e:
+            print(f"Failed to get deleted count: {e}")
+            return 0
+
+    # Function to extract text from document (handles different field names)
+    def extract_text(doc_source):
+        # Try to get content from different possible fields
+        if "body" in doc_source and isinstance(doc_source["body"], str) and doc_source["body"].strip():
+            return doc_source["body"]
+        elif "selftext" in doc_source and isinstance(doc_source["selftext"], str) and doc_source["selftext"].strip():
+            return doc_source["selftext"]
+        elif "content" in doc_source and isinstance(doc_source["content"], str) and doc_source["content"].strip():
+            return doc_source["content"]
+        elif "title" in doc_source and isinstance(doc_source["title"], str) and doc_source["title"].strip():
+            return doc_source["title"]
+        return None
+
+    # Save checkpoint function
+    def save_checkpoint(position, shard_index, total_processed):
+        checkpoint_id = f"{INDEX_NAME}-checkpoint-{shard_index}"
+        try:
+            checkpoint_data = {
+                "index_name": INDEX_NAME,
+                "shard_index": shard_index,
+                "position": position,
+                "processed": total_processed,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")
+            }
+
+            # Check if a checkpoint exists
+            if es.exists(index=STATE_INDEX, id=checkpoint_id):
+                es.update(index=STATE_INDEX, id=checkpoint_id, doc=checkpoint_data)
+            else:
+                es.index(index=STATE_INDEX, id=checkpoint_id, document=checkpoint_data)
+
+            print(f"Checkpoint saved: position {position}, processed {total_processed}")
+            return True
+        except Exception as e:
+            print(f"Failed to save checkpoint: {e}")
+            return False
+
+    # Loading checkpoint function
+    def load_checkpoint(shard_index):
+        checkpoint_id = f"{INDEX_NAME}-checkpoint-{shard_index}"
+        try:
+            if es.exists(index=STATE_INDEX, id=checkpoint_id):
+                checkpoint = es.get(index=STATE_INDEX, id=checkpoint_id)["_source"]
+                print(f"Checkpoint loaded: position {checkpoint.get('position')}, processed {checkpoint.get('processed')}")
+                return checkpoint
+            else:
+                print(f"No checkpoint found for shard {shard_index}")
+                return None
+        except Exception as e:
+            print(f"Failed to load checkpoint: {e}")
+            return None
+
+    # Main processing function
+    def process_documents():
+        # Get current state for this shard
+        state = get_processing_state()
+        processed_count = state.get("processed", 0)
+
+        # Check if index exists
+        if not es.indices.exists(index=INDEX_NAME):
+            print(f"Index {INDEX_NAME} does not exist")
+            return
+
+        # Get diagnostic information
+        try:
+            # Check unprocessed document count
+            unprocessed_query = {
+                "bool": {
+                    "must_not": [
+                        {"exists": {"field": "roberta_sentiment_label"}}
+                    ],
+                    "should": [
+                        {"exists": {"field": "body"}},
+                        {"exists": {"field": "selftext"}},
+                        {"exists": {"field": "content"}},
+                        {"exists": {"field": "title"}}
+                    ],
+                    "minimum_should_match": 1
+                }
+            }
+
+            # Get total unprocessed count
+            total_unprocessed = es.count(index=INDEX_NAME, query=unprocessed_query)["count"]
+            print(f"Total unprocessed documents in index: {total_unprocessed}")
+
+            if total_unprocessed == 0:
+                print(f"All documents in index {INDEX_NAME} have been processed!")
+                return
+
+        except Exception as e:
+            print(f"Error in diagnostic queries: {e}")
+            return
+
+        # Count total documents
+        total_docs = es.count(index=INDEX_NAME)["count"]
+        deleted_count = get_deleted_count()
+        print(f"Shard {SHARD_INDEX}: Index {INDEX_NAME} has a total of {total_docs} documents")
+        print(f"Deleted documents in index: {deleted_count}")
+
+        try:
+            # Calculate per-shard processing quota for THIS run based on current unprocessed count
+            docs_per_shard = total_unprocessed // SHARD_TOTAL
+            remainder = total_unprocessed % SHARD_TOTAL
+
+            # Calculate this shard's quota for THIS run
+            # Last shard gets any remainder
+            if SHARD_INDEX == SHARD_TOTAL - 1:
+                shard_quota = docs_per_shard + remainder
+            else:
+                shard_quota = docs_per_shard
+
+            # Limit to MAX_DOCS_PER_RUN
+            docs_this_run = min(MAX_DOCS_PER_RUN, shard_quota)
+
+            print(f"Shard {SHARD_INDEX}: Will process up to {docs_this_run} documents this run out of {total_unprocessed} total unprocessed")
+
+            # If no documents to process in this run, exit
+            if docs_this_run <= 0:
+                print(f"Shard {SHARD_INDEX}: No documents to process in this run. Exiting.")
+                return
+
+            # Load checkpoint for progress tracking
+            checkpoint = load_checkpoint(SHARD_INDEX)
+
+            # Initialize a scroll context with a long timeout
+            print(f"Shard {SHARD_INDEX}: Initializing scroll session for unprocessed documents")
+
+            # Initialize scroll - we don't need to skip documents with this new approach
+            # Each shard just takes its fair share from the current unprocessed docs
+            scroll_response = es.search(
+                index=INDEX_NAME,
+                query=unprocessed_query,
+                sort=["_doc"],
+                scroll="2h",
+                size=min(BATCH_SIZE, docs_this_run)
+            )
+
+            scroll_id = scroll_response["_scroll_id"]
+            hits = scroll_response["hits"]["hits"]
+
+            # Check if we got any results
+            if not hits:
+                print(f"Shard {SHARD_INDEX}: No documents available to process. Exiting.")
+                es.clear_scroll(scroll_id=scroll_id)
+                return
+
+            # Setup for processing
+            content_hash_cache = {}
+            processed_this_run = 0
+            last_refresh_time = time.time()
+            batch_count = 0
+
+            # Process in batches
+            while hits and processed_this_run < docs_this_run:
+                batch_count += 1
+                print(f"Shard {SHARD_INDEX}: Processing batch #{batch_count} with {len(hits)} documents")
+
+                # Use batch processing
+                bulk_actions = []
+                success_count = 0
+                batch_last_id = None
+
+                # For each document in the batch
+                for i, hit in enumerate(tqdm(hits)):
+                    # Only process documents that this shard is responsible for
+                    # Here we use the document position in the result set instead of the document ID
+                    if total_unprocessed <= 1000 or i % SHARD_TOTAL == SHARD_INDEX:
+                        doc_id = hit["_id"]
+                        doc_source = hit["_source"]
+                        batch_last_id = doc_id
+
+                        # Extract text content
+                        content = extract_text(doc_source)
+
+                        if content is None:
+                            # Default sentiment scores for documents without content
+                            sentiment_scores = {"negative": 0.0, "neutral": 1.0, "positive": 0.0}
+                            sentiment_label = "neutral"
+
+                        # Use cache to reduce duplicate processing
+                        content_hash = hash(content)
+                        if content_hash in content_hash_cache:
+                            sentiment_scores = content_hash_cache[content_hash]
+                        else:
+                            # Perform sentiment analysis
+                            sentiment_scores = get_sentiment(content)
+                            content_hash_cache[content_hash] = sentiment_scores
+
+                        # Get sentiment label
+                        sentiment_label = max(sentiment_scores, key=sentiment_scores.get)
+
+                        # Prepare for batch update
+                        bulk_actions.append(
+                            {"update": {"_index": INDEX_NAME, "_id": doc_id}}
+                        )
+                        bulk_actions.append(
+                            {"doc": {
+                                "roberta_sentiment": sentiment_scores,
+                                "roberta_sentiment_label": sentiment_label
+                            }}
+                        )
+
+                # Perform batch updates
+                if bulk_actions:
+                    try:
+                        response = es.bulk(operations=bulk_actions, refresh=True)
+
+                        # Calculate successful updates
+                        success_count = 0
+                        for i, item in enumerate(response['items']):
+                            if i % 2 == 0 and 'update' in item:  # Only count update operations
+
+                                # 200: indicates that the document was updated successfully
+                                # 201: indicates that the new document was created successfully
+                                if item['update'].get('status') in (200, 201):
+                                    success_count += 1
+
+                        # Update Status
+                        if success_count > 0:  # Only update status if something was processed
+                            processed_this_run += success_count
+                            total_processed = processed_count + processed_this_run
+
+                            # Update processing status
+                            update_processing_state(batch_last_id, total_processed, total_docs)
+
+                            # Save checkpoint periodically, but only if we processed something
+                            if processed_this_run % 1000 == 0:
+                                save_checkpoint(processed_this_run, SHARD_INDEX, total_processed)
+
+                            print(f"Shard {SHARD_INDEX}: Batch result: {success_count} successful updates")
+                            print(f"Shard {SHARD_INDEX}: Current progress: {total_processed}/{total_docs} ({(total_processed / total_docs) * 100:.2f}%)")
+
+                            if processed_this_run >= docs_this_run:
+                                print(f"Shard {SHARD_INDEX}: Reached processing quota for this run")
+                                break
+                    except Exception as e:
+                        print(f"Bulk update failed: {e}")
+
+                # Refresh scroll context regularly to prevent timeout
+                current_time = time.time()
+                # Every 30 minutes or every 5 batches
+                if current_time - last_refresh_time > 1800:  # 30 minutes
+                    print(f"Refreshing scroll context after batch #{batch_count}")
+                    try:
+                        # Extend the timeout without getting new data
+                        es.scroll(scroll_id=scroll_id, scroll="2h")
+                        last_refresh_time = current_time
+                    except Exception as e:
+                        print(f"Failed to refresh scroll context: {e}")
+
+                # Get next batch with scroll
+                try:
+                    scroll_response = es.scroll(scroll_id=scroll_id, scroll="2h")
+                    scroll_id = scroll_response["_scroll_id"]
+                    hits = scroll_response["hits"]["hits"]
+
+                    # If we got no hits but still have quota, it means we've processed all available docs
+                    if not hits and processed_this_run < docs_this_run:
+                        print(f"Shard {SHARD_INDEX}: No more documents available to process.")
+                        break
+                except Exception as e:
+                    print(f"Error getting next batch: {e}")
+                    if "No search context found" in str(e):
+                        print("Scroll context lost. Exiting processing.")
+                    break
+
+                # Brief pause between batches to reduce load
+                time.sleep(2)
+
+            # Save final checkpoint
+            save_checkpoint(processed_this_run, SHARD_INDEX, processed_count + processed_this_run)
+
+            # Clean up scroll context
+            try:
+                es.clear_scroll(scroll_id=scroll_id)
+            except Exception as e:
+                print(f"Warning: Failed to clear scroll context: {e}")
+
+            # Clear cache
+            content_hash_cache.clear()
+
+            # Final status update
+            print(f"Shard {SHARD_INDEX}: This run processed {processed_this_run} documents")
+            print(f"Shard {SHARD_INDEX}: Total processed in this shard: {processed_count + processed_this_run} documents out of {total_docs} total")
+
+            # Check for remaining documents
+            remaining_unprocessed = es.count(index=INDEX_NAME, query=unprocessed_query)["count"]
+            if remaining_unprocessed > 0:
+                print(f"There are still {remaining_unprocessed} documents left to process across all shards.")
+            else:
+                print(f"All documents in index {INDEX_NAME} have been processed!")
+
+        except Exception as e:
+            print(f"Error in main processing: {e}")
+            # Clean up scroll context in case of error
+            if 'scroll_id' in locals():
+                try:
+                    es.clear_scroll(scroll_id=scroll_id)
+                except:
+                    pass
+
+    # Execute processing
+    print(f"Starting to process index: {INDEX_NAME} with shard {SHARD_INDEX} of {SHARD_TOTAL}")
+    process_documents()
+    print(f"Processing of index {INDEX_NAME} shard {SHARD_INDEX} completed")
