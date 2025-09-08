@@ -8,8 +8,6 @@
 5. [Installation Instructions](#installation-instructions)
 6. [API Usage](#api-usage)
 7. [Monitoring and Logging](#monitoring-and-logging)
-8. [Useful Stuff](#useful-stuff)
-9. [Contributors](#contributors)
 
 ## Overview
 This cloud-native application ingests social media data from Mastodon and Reddit (BlueSky PoC), performs sentiment analysis on posts referencing global and Australian artists, and visualizes the results through Kibana and a Jupyter notebook front-end. The platform is deployed on the Melbourne Research Cloud using Kubernetes, Fission (serverless), Elasticsearch, Redis, FastAPI, Preometheus and Grafana.
