@@ -1,18 +1,4 @@
 """
-===============================================================================
-Team 81
-
-Members:
-- Adam McMillan (1393533)
-- Ryan Kuang (1547320)
-- Tim Shen (1673715)
-- Yili Liu (883012)
-- Yuting Cai (1492060)
-
-===============================================================================
-"""
-
-"""
 This stores functions related to pre-processing of queued 
 harvested data and storing in Elastic
 """

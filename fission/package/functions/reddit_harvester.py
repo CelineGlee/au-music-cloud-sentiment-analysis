@@ -1,17 +1,3 @@
-"""
-===============================================================================
-Team 81
-
-Members:
-- Adam McMillan (1393533)
-- Ryan Kuang (1547320)
-- Tim Shen (1673715)
-- Yili Liu (883012)
-- Yuting Cai (1492060)
-
-===============================================================================
-"""
-
 """RedditHarvester class to harvest posts from a subreddit using PRAW and store them in Redis."""
 
 import random

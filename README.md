@@ -1,4 +1,4 @@
-# Social Media Sentiment Analysis on Australian Music System README
+# Cloud-based Social Media Sentiment Analysis on Australian Artists
 
 ## Table of Contents
 1. [Overview](#overview)
@@ -13,7 +13,6 @@
 
 ## Overview
 This cloud-native application ingests social media data from Mastodon and Reddit (BlueSky PoC), performs sentiment analysis on posts referencing global and Australian artists, and visualizes the results through Kibana and a Jupyter notebook front-end. The platform is deployed on the Melbourne Research Cloud using Kubernetes, Fission (serverless), Elasticsearch, Redis, FastAPI, Preometheus and Grafana.
-Presentation: https://team81.my.canva.site/
 
 ## System Architecture
 * **Backend:** Fission serverless functions (Python), Redis queue
@@ -36,8 +35,8 @@ Make sure you have the following installed locally or in your environment:
 * Clone this repository:
 
 ```bash
-git clone https://gitlab.unimelb.edu.au/yeeshen/comp90024_team_81.git
-cd comp90024_team_81
+git clone https://github.com/CelineGlee/au-music-cloud-sentiment-analysis.git
+cd au-music-cloud-sentiment-analysis
 ```
 ## Deployment Instructions
 
@@ -101,9 +100,9 @@ helm upgrade --install \
 # Create a PersistentVolumeClaim (PVC) to store the ml model
 kubectl apply -f persistent_store_model.yaml
 
-# Build the Docker image ("yucai5" is our registry name, you can change your own docker registry name)
-docker build -t yucai5/sentiment-analyzer:lightweight -f Dockerfile .
-docker push yucai5/sentiment-analyzer:lightweight
+# Build the Docker image
+docker build -t your-docker-registry-name/sentiment-analyzer:lightweight -f Dockerfile .
+docker push your-docker-registry-name/sentiment-analyzer:lightweight
 
 # Deploy and Download the model into pvc
 kubectl apply -f model-scripts-configmap.yaml
@@ -149,7 +148,7 @@ kubectl logs job/reddit-comment-shard4-job -n elastic
 * Port forward to localhost:9090 and you may browse http://localhost:9090/docs to see the API docs.
 
 ```bash
-cd comp90024_team_81/backend/analyser_api
+cd au-music-cloud-sentiment-analysis/backend/analyser_api
 docker build --platform=linux/amd64 -t <your dockerhub repo>/analyser_api:latest --push .
 helm upgrade analyser-api ./analyser_api --install --namespace default
 kubectl -n default port-forward svc/analyser-api 9090:9090
@@ -264,20 +263,3 @@ fission fn logs --name reddit-harvester
 kubectl get pods -A
 kubectl logs <pod-name>
 ```
-
-## Useful Stuff
-You can use the Makefile to quickly enable all port-forwards. Just make sure you're in the comp90024_team_81 root directory before running it.
-
-```bash
-make run-port-forwards
-make kill-port-forwards
-```
-
-https://gitlab.unimelb.edu.au/yeeshen/comp90024_team_81/-/wikis/Useful-Links
-
-## Contributors
-* Adam McMillan
-* Ryan Kuang
-* Tim Shen
-* Yili Liu
-* Yuting Cai

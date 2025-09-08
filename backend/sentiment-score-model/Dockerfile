@@ -1,6 +1,3 @@
-# docker build -t yucai5/sentiment-analyzer:lightweight -f Dockerfile .
-# docker push yucai5/sentiment-analyzer:lightweight
-
 FROM python:3.9-slim
 
 WORKDIR /app
