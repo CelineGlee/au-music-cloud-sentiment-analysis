@@ -10,12 +10,12 @@
 7. [Monitoring and Logging](#monitoring-and-logging)
 
 ## Overview
-This cloud-native application ingests social media data from Mastodon and Reddit (BlueSky PoC), performs sentiment analysis on posts referencing global and Australian artists, and visualizes the results through Kibana and a Jupyter notebook front-end. The platform is deployed on the Melbourne Research Cloud using Kubernetes, Fission (serverless), Elasticsearch, Redis, FastAPI, Preometheus and Grafana.
+This cloud-native application ingests social media data from Mastodon and Reddit (BlueSky PoC), performs sentiment analysis on posts referencing global and Australian artists, and visualizes the results through Kibana. The platform is deployed on the Melbourne Research Cloud using Kubernetes, Fission (serverless), Elasticsearch, Redis, FastAPI, Preometheus and Grafana.
 
 ## System Architecture
 * **Backend:** Fission serverless functions (Python), Redis queue
 * **Data Store:** Redis service with redis insight, Elasticsearch cluster with Kibana
-* **Frontend/API:** Jupyter Notebook / FastAPI with OpenAPI documentation
+* **API:** FastAPI with OpenAPI documentation
 * **ML Model:** HuggingFace transformer for sentiment analysis
 * **Platform:** NeCTAR Research Cloud (OpenStack), Kubernetes with KEDA autoscaling
 * **Monitor:** Prometheus, Grafana, Blackbox to monitor the system
